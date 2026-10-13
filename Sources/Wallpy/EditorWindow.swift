@@ -68,6 +68,12 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
                   !(self.window?.firstResponder is NSText) else { return event }
             let shift = event.modifierFlags.contains(.shift)
             if event.modifierFlags.contains(.command) { return event }
+            if event.modifierFlags.contains(.option), event.keyCode == 123 || event.keyCode == 124 {
+                // ⌥← ⌥→ move the whole clip by a frame (⇧ for one second).
+                let step = shift ? 1 : model.frameDuration
+                model.moveClip(by: event.keyCode == 123 ? -step : step)
+                return nil
+            }
             switch event.keyCode {
             case 49: model.togglePlay()                                  // space
             case 123: shift ? model.nudge(seconds: -1) : model.step(frames: -1)  // ←
@@ -258,6 +264,15 @@ final class EditorModel: ObservableObject {
     }
 
     // MARK: Clips
+
+    /// Slides the selected clip, keeping its length.
+    func moveClip(by seconds: Double) {
+        let length = rangeLength
+        let newIn = min(max(0, inPoint + seconds), max(0, duration - length))
+        outPoint = newIn + length
+        inPoint = newIn
+        seek(to: inPoint)
+    }
 
     private func syncSelectedClip() {
         guard let index = selectedIndex else { return }
@@ -666,6 +681,7 @@ private struct TimelineView: View {
                 .clipped()
                 .contentShape(Rectangle())
                 .gesture(timelineDrag(width: width))
+                .onContinuousHover(coordinateSpace: .local) { updateCursor($0, width: width) }
                 .onAppear { model.setView(start: model.viewStart) }
             }
             .frame(height: totalHeight)
@@ -683,7 +699,7 @@ private struct TimelineView: View {
                 Button(tr("Ver todo")) { model.setView(start: 0, length: model.duration) }
                     .controlSize(.small)
             }
-            Text(tr("Arrastra para buscar · bordes azules: entrada/salida · ⌥ arrastrar: mover tramo · clic en la franja de tramos: seleccionar · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · ⇧← ⇧→ 1 s · + / − zoom"))
+            Text(tr("Regla o fuera del tramo: buscar · dentro del tramo: moverlo · bordes azules: entrada/salida · franja de tramos: elegir y mover · ⌥← ⌥→ mover tramo · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · + / − zoom"))
                 .font(.caption2).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -825,30 +841,26 @@ private struct TimelineView: View {
             .onChanged { value in
                 if drag == nil {
                     let startX = value.startLocation.x
-                    let inX = x(model.inPoint, width), outX = x(model.outPoint, width)
                     wasPlaying = model.isPlaying
                     let y = value.startLocation.y
+                    model.pause()
                     if y > rulerHeight && y < stripTop {
-                        // Clip lane: select the clip under the pointer.
+                        // Clip lane: pick the clip under the pointer and slide it.
                         let t = time(at: startX, width)
                         if let clip = model.clips.first(where: { t >= $0.inPoint && t <= $0.outPoint }) {
                             model.selectClip(clip.id)
+                            drag = .range(t, clip.inPoint, clip.outPoint)
+                        } else {
+                            drag = .select
                         }
-                        drag = .select
                         return
                     }
-                    if y > stripTop && abs(startX - inX) < 10 {
-                        drag = .inHandle
-                    } else if y > stripTop && abs(startX - outX) < 10 {
-                        drag = .outHandle
-                    } else if y > stripTop, NSEvent.modifierFlags.contains(.option),
-                              startX > inX, startX < outX {
-                        // ⌥-drag inside the box slides the whole loop.
-                        drag = .range(time(at: startX, width), model.inPoint, model.outPoint)
-                    } else {
-                        drag = .scrub
+                    switch region(x: startX, y: y, width: width) {
+                    case .inHandle: drag = .inHandle
+                    case .outHandle: drag = .outHandle
+                    case .inside: drag = .range(time(at: startX, width), model.inPoint, model.outPoint)
+                    default: drag = .scrub
                     }
-                    model.pause()
                 }
                 let t = time(at: value.location.x, width)
                 switch drag {
@@ -859,6 +871,7 @@ private struct TimelineView: View {
                 case .select:
                     break
                 case .range(let anchor, let originalIn, let originalOut):
+                    NSCursor.closedHand.set()
                     let length = originalOut - originalIn
                     let newIn = min(max(0, originalIn + t - anchor), model.duration - length)
                     model.setOut(newIn + length); model.setIn(newIn); model.setOut(newIn + length)
@@ -870,7 +883,39 @@ private struct TimelineView: View {
             .onEnded { _ in
                 if case .scrub = drag, wasPlaying { model.play() }
                 drag = nil
+                NSCursor.arrow.set()
             }
+    }
+
+    private enum Region { case ruler, lane, inHandle, outHandle, inside, outside }
+
+    private func region(x px: CGFloat, y: CGFloat, width: CGFloat) -> Region {
+        if y < rulerHeight { return .ruler }
+        if y < stripTop { return .lane }
+        let inX = x(model.inPoint, width), outX = x(model.outPoint, width)
+        if abs(px - inX) < 10 { return .inHandle }
+        if abs(px - outX) < 10 { return .outHandle }
+        return px > inX && px < outX ? .inside : .outside
+    }
+
+    /// Cursor that says what a drag will do: hand to move the clip, arrows on the edges.
+    private func updateCursor(_ phase: HoverPhase, width: CGFloat) {
+        guard drag == nil else {
+            if case .range = drag { NSCursor.closedHand.set() }
+            return
+        }
+        guard case .active(let point) = phase else {
+            NSCursor.arrow.set()
+            return
+        }
+        switch region(x: point.x, y: point.y, width: width) {
+        case .inHandle, .outHandle: NSCursor.resizeLeftRight.set()
+        case .inside: NSCursor.openHand.set()
+        case .lane:
+            let t = time(at: point.x, width)
+            (model.clips.contains { t >= $0.inPoint && t <= $0.outPoint } ? NSCursor.openHand : NSCursor.arrow).set()
+        default: NSCursor.arrow.set()
+        }
     }
 
     static func tickStep(viewLength: Double, width: CGFloat) -> Double {

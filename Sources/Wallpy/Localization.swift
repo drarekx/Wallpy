@@ -228,8 +228,8 @@ private enum Translations {
         "Duración del bucle": "Loop Duration",
         "Ajustar al tramo": "Fit to Clip",
         "Ver todo": "Show All",
-        "Arrastra para buscar · bordes azules: entrada/salida · ⌥ arrastrar: mover tramo · clic en la franja de tramos: seleccionar · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · ⇧← ⇧→ 1 s · + / − zoom":
-            "Drag to scrub · blue edges: in/out · ⌥ drag: move clip · click the clip strip: select · N new clip · I / O mark · Space plays · ← → frame · ⇧← ⇧→ 1 s · + / − zoom",
+        "Regla o fuera del tramo: buscar · dentro del tramo: moverlo · bordes azules: entrada/salida · franja de tramos: elegir y mover · ⌥← ⌥→ mover tramo · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · + / − zoom":
+            "Ruler or outside the clip: scrub · inside the clip: move it · blue edges: in/out · clip strip: pick and move · ⌥← ⌥→ move clip · N new clip · I / O mark · Space plays · ← → frame · + / − zoom",
         "Mapa del vídeo completo: arrastra para moverte por la línea de tiempo": "Full video map: drag to move along the timeline",
         "Nuevo tramo en el cabezal (N)": "New Clip at Playhead (N)",
         "Tramos (%d)": "Clips (%d)",
@@ -481,8 +481,8 @@ private enum Translations {
         "Duración del bucle": "Durada del bucle",
         "Ajustar al tramo": "Ajusta al tram",
         "Ver todo": "Mostra-ho tot",
-        "Arrastra para buscar · bordes azules: entrada/salida · ⌥ arrastrar: mover tramo · clic en la franja de tramos: seleccionar · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · ⇧← ⇧→ 1 s · + / − zoom":
-            "Arrossega per cercar · vores blaves: entrada/sortida · ⌥ arrossegar: mou el tram · clic a la franja de trams: selecciona · N tram nou · I / O marquen · Espai reprodueix · ← → fotograma · ⇧← ⇧→ 1 s · + / − zoom",
+        "Regla o fuera del tramo: buscar · dentro del tramo: moverlo · bordes azules: entrada/salida · franja de tramos: elegir y mover · ⌥← ⌥→ mover tramo · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · + / − zoom":
+            "Regle o fora del tram: cerca · dins del tram: mou-lo · vores blaves: entrada/sortida · franja de trams: tria i mou · ⌥← ⌥→ mou el tram · N tram nou · I / O marquen · Espai reprodueix · ← → fotograma · + / − zoom",
         "Mapa del vídeo completo: arrastra para moverte por la línea de tiempo": "Mapa del vídeo complet: arrossega per moure't per la línia de temps",
         "Nuevo tramo en el cabezal (N)": "Tram nou al capçal (N)",
         "Tramos (%d)": "Trams (%d)",
