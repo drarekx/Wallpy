@@ -29,6 +29,13 @@ struct EditorSheet: View {
     @State private var step: Step = .link
     @State private var link = ""
     @State private var maxHeight = 2160
+    @State private var info: RemoteVideoInfo?
+    @State private var infoState: InfoState = .none
+    @State private var onlySection = false
+    @State private var fromText = "0:00"
+    @State private var toText = ""
+
+    private enum InfoState: Equatable { case none, loading, failed }
     @State private var job: Task<Void, Never>?
     @State private var workDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("Wallpy-\(UUID().uuidString)", isDirectory: true)
@@ -95,6 +102,10 @@ struct EditorSheet: View {
                     .buttonStyle(.wallpySecondary)
                 }
             }
+            infoCard
+            if info != nil {
+                sectionPicker
+            }
             VStack(alignment: .leading, spacing: 6) {
                 Text(tr("Calidad máxima")).foregroundStyle(Theme.text2)
                 SegmentedControl(options: [("1080p", 1080), ("1440p", 1440), ("4K", 2160)],
@@ -115,20 +126,129 @@ struct EditorSheet: View {
                 Button(tr("Descargar"), action: startDownload)
                     .buttonStyle(WallpyButtonStyle(kind: .primary, height: 34))
                     .keyboardShortcut(.defaultAction)
-                    .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty || !ExternalTool.missing.isEmpty)
+                    .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty || !ExternalTool.missing.isEmpty
+                              || (onlySection && section == nil))
             }
         }
         .padding(24)
         .frame(width: 520)
+        .task(id: link) { await loadInfo() }
+    }
+
+    // MARK: Video info and section
+
+    @ViewBuilder private var infoCard: some View {
+        switch infoState {
+        case .loading:
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text(tr("Buscando el vídeo…")).foregroundStyle(Theme.text2)
+            }
+        case .failed:
+            Text(tr("No se encontró el vídeo. Revisa el enlace."))
+                .font(.system(size: 12)).foregroundStyle(Theme.warn)
+        case .none:
+            if let info {
+                HStack(spacing: 12) {
+                    AsyncImage(url: info.thumbnail) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Theme.field
+                    }
+                    .frame(width: 112, height: 63)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(info.title).fontWeight(.medium).lineLimit(2)
+                        if let duration = info.duration {
+                            Text(Timecode.format(duration)).monospacedText().foregroundStyle(Theme.text2)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+                .background(Theme.field, in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+
+    private var sectionPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(tr("Bajar solo un trozo"), isOn: $onlySection)
+                .toggleStyle(.switch)
+                .tint(Theme.accentFill)
+                .onChange(of: onlySection) { _, on in
+                    if on && toText.isEmpty, let duration = info?.duration {
+                        toText = Timecode.format(min(duration, 60))
+                    }
+                }
+            if onlySection {
+                HStack(spacing: 10) {
+                    Text(tr("Desde")).foregroundStyle(Theme.text2)
+                    WallpyTextField(placeholder: "0:00", text: $fromText).frame(width: 100)
+                    Text(tr("Hasta")).foregroundStyle(Theme.text2)
+                    WallpyTextField(placeholder: info?.duration.map(Timecode.format) ?? "1:00", text: $toText).frame(width: 100)
+                    Spacer()
+                }
+                Text(sectionMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(section == nil ? Theme.warn : Theme.text3)
+            }
+        }
+    }
+
+    /// The chosen part, or nil if the fields don't make a valid range.
+    private var section: ClosedRange<Double>? {
+        guard let start = Timecode.parse(fromText), let end = Timecode.parse(toText), end > start + 0.5 else { return nil }
+        if let duration = info?.duration, end > duration + 0.5 { return nil }
+        return start...end
+    }
+
+    private var sectionMessage: String {
+        if let section {
+            return tr("Se descargará un trozo de %@. Puede incluir uno o dos segundos de más en los bordes.",
+                      Timecode.format(section.upperBound - section.lowerBound))
+        }
+        guard Timecode.parse(fromText) != nil, let end = Timecode.parse(toText) else {
+            return tr("Escribe los tiempos como 1:30 o 1:02:30.")
+        }
+        if let duration = info?.duration, end > duration + 0.5 {
+            return tr("El final pasa de la duración del vídeo (%@).", Timecode.format(duration))
+        }
+        return tr("El inicio tiene que ser anterior al final.")
+    }
+
+    private func loadInfo() async {
+        let trimmed = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        info = nil
+        guard trimmed.hasPrefix("http"), ExternalTool.ytDlp.url != nil else {
+            infoState = .none
+            return
+        }
+        // Wait until typing or pasting settles.
+        try? await Task.sleep(for: .milliseconds(500))
+        guard !Task.isCancelled else { return }
+        infoState = .loading
+        do {
+            let fetched = try await YouTubeDownloader.info(trimmed)
+            guard !Task.isCancelled else { return }
+            info = fetched
+            infoState = .none
+        } catch {
+            if !Task.isCancelled { infoState = .failed }
+        }
     }
 
     private func startDownload() {
         let trimmed = link.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        step = .working(tr("Descargando…"), 0)
+        let range = onlySection ? section : nil
+        // yt-dlp only reports a percentage for whole videos; a part shows an activity indicator.
+        step = .working(range == nil ? tr("Descargando…") : tr("Descargando el trozo…"), range == nil ? 0 : nil)
         job = Task {
             do {
-                let result = try await YouTubeDownloader.download(trimmed, maxHeight: maxHeight, into: workDir) { value in
+                let result = try await YouTubeDownloader.download(trimmed, maxHeight: maxHeight, section: range,
+                                                                  into: workDir) { value in
+                    guard range == nil else { return }
                     Task { @MainActor in step = .working(tr("Descargando…"), value) }
                 }
                 prepare(file: result.file, name: result.title)
