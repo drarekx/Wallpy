@@ -33,6 +33,7 @@ Requisitos: macOS 14 (Sonoma) o posterior. Apple Silicon o Intel.
 - **Originales**: guarda vídeos largos para sacar más fondos otro día sin volver a descargarlos.
 - **Ahorro de energía**: pausa cuando las ventanas tapan el escritorio, con batería o con batería baja, y cuando se apagan las pantallas.
 - Ocultar iconos del escritorio, volumen (silenciado por defecto) y abrir al iniciar sesión.
+- **Idiomas**: castellano, inglés y catalán (Ajustes → Idioma; por defecto, el del sistema).
 
 ### Atajos del editor
 

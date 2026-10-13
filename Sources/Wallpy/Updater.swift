@@ -77,26 +77,26 @@ final class Updater: ObservableObject {
 
             guard !release.draft, !release.prerelease,
                   Self.compare(release.version, Self.currentVersion) == .orderedDescending else {
-                if userInitiated { alert("Wallpy está actualizado", "Tienes la última versión (\(Self.currentVersion)).") }
+                if userInitiated { alert(tr("Wallpy está actualizado"), tr("Tienes la última versión (%@).", Self.currentVersion)) }
                 return
             }
             if !userInitiated, defaults.string(forKey: "skippedVersion") == release.version { return }
             state = .idle
             offer(release)
         } catch {
-            if userInitiated { alert("No se pudo buscar actualizaciones", error.localizedDescription) }
+            if userInitiated { alert(tr("No se pudo buscar actualizaciones"), error.localizedDescription) }
         }
     }
 
     private func offer(_ release: Release) {
         let alert = NSAlert()
-        alert.messageText = "Wallpy \(release.version) está disponible"
+        alert.messageText = tr("Wallpy %@ está disponible", release.version)
         var notes = (release.body ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if notes.count > 900 { notes = String(notes.prefix(900)) + "…" }
-        alert.informativeText = "Tienes la versión \(Self.currentVersion)." + (notes.isEmpty ? "" : "\n\n\(notes)")
-        alert.addButton(withTitle: "Actualizar ahora")
-        alert.addButton(withTitle: "Más tarde")
-        alert.addButton(withTitle: "Omitir esta versión")
+        alert.informativeText = tr("Tienes la versión %@.", Self.currentVersion) + (notes.isEmpty ? "" : "\n\n\(notes)")
+        alert.addButton(withTitle: tr("Actualizar ahora"))
+        alert.addButton(withTitle: tr("Más tarde"))
+        alert.addButton(withTitle: tr("Omitir esta versión"))
         NSApp.activate(ignoringOtherApps: true)
         switch alert.runModal() {
         case .alertFirstButtonReturn:
@@ -114,16 +114,16 @@ final class Updater: ObservableObject {
         let appURL = Bundle.main.bundleURL
         let parent = appURL.deletingLastPathComponent()
         guard !appURL.path.contains("/AppTranslocation/") else {
-            alert("No se puede actualizar desde aquí",
-                  "Mueve Wallpy a la carpeta Aplicaciones, ábrela de nuevo y vuelve a intentarlo.")
+            alert(tr("No se puede actualizar desde aquí"),
+                  tr("Mueve Wallpy a la carpeta Aplicaciones, ábrela de nuevo y vuelve a intentarlo."))
             return
         }
         guard FileManager.default.isWritableFile(atPath: parent.path) else {
-            alert("No se puede actualizar", "No hay permiso para escribir en \(parent.path).\nUsa el instalador:\n\ncurl -fsSL https://raw.githubusercontent.com/\(Self.repo)/main/install.sh | bash")
+            alert(tr("No se puede actualizar"), tr("No hay permiso para escribir en %@.\nUsa el instalador:\n\n%@", parent.path, "curl -fsSL https://raw.githubusercontent.com/\(Self.repo)/main/install.sh | bash"))
             return
         }
         guard let zipURL = release.asset("Wallpy.zip"), let hashURL = release.asset("Wallpy.zip.sha256") else {
-            alert("No se puede actualizar", "La versión \(release.version) no incluye los archivos de actualización.")
+            alert(tr("No se puede actualizar"), tr("La versión %@ no incluye los archivos de actualización.", release.version))
             return
         }
 
@@ -153,7 +153,7 @@ final class Updater: ObservableObject {
         } catch {
             state = .idle
             try? FileManager.default.removeItem(at: work)
-            alert("La actualización falló", error.localizedDescription)
+            alert(tr("La actualización falló"), error.localizedDescription)
         }
     }
 
@@ -176,7 +176,7 @@ final class Updater: ObservableObject {
             NSApp.terminate(nil)
         } catch {
             state = .idle
-            alert("La actualización falló", error.localizedDescription)
+            alert(tr("La actualización falló"), error.localizedDescription)
         }
     }
 
@@ -223,10 +223,10 @@ enum UpdateError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .server: return "GitHub no respondió correctamente. Inténtalo más tarde."
-        case .checksum: return "El archivo descargado no coincide con su huella SHA-256. No se ha instalado nada."
-        case .unzip: return "No se pudo descomprimir la actualización."
-        case .invalidBundle: return "La descarga no contiene una versión válida de Wallpy."
+        case .server: return tr("GitHub no respondió correctamente. Inténtalo más tarde.")
+        case .checksum: return tr("El archivo descargado no coincide con su huella SHA-256. No se ha instalado nada.")
+        case .unzip: return tr("No se pudo descomprimir la actualización.")
+        case .invalidBundle: return tr("La descarga no contiene una versión válida de Wallpy.")
         }
     }
 }

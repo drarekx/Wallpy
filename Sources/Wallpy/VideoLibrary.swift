@@ -24,7 +24,7 @@ struct Video: Codable, Identifiable, Hashable {
     var thumbnailURL: URL { VideoLibrary.directory.appendingPathComponent("\(id.uuidString).jpg") }
     var resolutionLabel: String { "\(width)×\(height)" }
     var durationLabel: String {
-        if isImage { return "Imagen" }
+        if isImage { return tr("Imagen") }
         let s = Int(duration.rounded())
         return String(format: "%d:%02d", s / 60, s % 60)
     }
@@ -62,9 +62,9 @@ enum ImportError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notPlayable(let name): return "«\(name)» no se puede reproducir con AVFoundation."
-        case .noVideoTrack(let name): return "«\(name)» no contiene pista de vídeo."
-        case .unreadableImage(let name): return "«\(name)» no es una imagen que macOS pueda abrir."
+        case .notPlayable(let name): return tr("«%@» no se puede reproducir con AVFoundation.", name)
+        case .noVideoTrack(let name): return tr("«%@» no contiene pista de vídeo.", name)
+        case .unreadableImage(let name): return tr("«%@» no es una imagen que macOS pueda abrir.", name)
         }
     }
 }

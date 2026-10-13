@@ -38,8 +38,8 @@ enum YouTubeDownloader {
                 collector.set(file: String(line.dropFirst(5)))
             }
         }
-        guard let path = collector.file else { throw ToolError.failed("yt-dlp no devolvió ningún archivo.") }
-        return DownloadResult(file: URL(fileURLWithPath: path), title: collector.title ?? "Vídeo de YouTube")
+        guard let path = collector.file else { throw ToolError.failed(tr("yt-dlp no devolvió ningún archivo.")) }
+        return DownloadResult(file: URL(fileURLWithPath: path), title: collector.title ?? tr("Vídeo de YouTube"))
     }
 }
 
@@ -83,6 +83,7 @@ struct SourceInfo {
 enum ExportQuality: String, CaseIterable, Identifiable {
     case high = "Alta", medium = "Media", low = "Ligera"
     var id: String { rawValue }
+    var label: String { tr(rawValue) }
     /// Encoder arguments. Constant-quality (-q:v) needs Apple Silicon; Intel Macs get a target bitrate.
     func encoderArguments(shortSide: Int) -> [String] {
         #if arch(arm64)

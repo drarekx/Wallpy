@@ -30,9 +30,9 @@ enum ToolError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notInstalled(let tool): return "No se encuentra \(tool.rawValue). Instálalo con: brew install \(tool.rawValue)"
+        case .notInstalled(let tool): return tr("No se encuentra %@. Instálalo con: brew install %@", tool.rawValue, tool.rawValue)
         case .failed(let message): return message
-        case .cancelled: return "Cancelado."
+        case .cancelled: return tr("Cancelado.")
         }
     }
 }
@@ -91,7 +91,7 @@ final class ToolProcess: @unchecked Sendable {
                 } else if process.terminationStatus != 0 {
                     let detail = self?.lastLines() ?? ""
                     continuation.resume(throwing: ToolError.failed(
-                        "\(executable.lastPathComponent) terminó con error \(process.terminationStatus).\n\(detail)"))
+                        tr("%@ terminó con error %d.\n%@", executable.lastPathComponent, Int(process.terminationStatus), detail)))
                 } else {
                     continuation.resume()
                 }

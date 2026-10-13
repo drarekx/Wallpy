@@ -10,6 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Migration.fromMyWallpaper()
         setupMainMenu()
+        Localizer.shared.$choice
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.setupMainMenu() }
+            .store(in: &cancellables)
         removeLeftoverDownloads()
         VideoLibrary.shared.load()
         WallpaperManager.shared.start()
@@ -60,21 +65,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Cerrar ventana", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        appMenu.addItem(withTitle: "Salir de Wallpy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: tr("Cerrar ventana"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(withTitle: tr("Salir de Wallpy"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
         let editItem = NSMenuItem()
-        let edit = NSMenu(title: "Edición")
-        edit.addItem(withTitle: "Deshacer", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: "Rehacer", action: Selector(("redo:")), keyEquivalent: "z")
+        let edit = NSMenu(title: tr("Edición"))
+        edit.addItem(withTitle: tr("Deshacer"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: tr("Rehacer"), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Cortar", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Copiar", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Pegar", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Seleccionar todo", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: tr("Cortar"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: tr("Copiar"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: tr("Pegar"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: tr("Seleccionar todo"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
 
@@ -96,36 +101,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let settings = Settings.shared
 
-        menu.addItem(withTitle: "Abrir biblioteca…", action: #selector(showLibrary), keyEquivalent: "l").target = self
+        menu.addItem(withTitle: tr("Abrir biblioteca…"), action: #selector(showLibrary), keyEquivalent: "l").target = self
         menu.addItem(.separator())
 
-        let pause = menu.addItem(withTitle: "Pausar fondos", action: #selector(togglePause), keyEquivalent: "p")
+        let pause = menu.addItem(withTitle: tr("Pausar fondos"), action: #selector(togglePause), keyEquivalent: "p")
         pause.target = self
         pause.state = settings.pausedManually ? .on : .off
 
-        let mute = menu.addItem(withTitle: "Silenciar", action: #selector(toggleMute), keyEquivalent: "")
+        let mute = menu.addItem(withTitle: tr("Silenciar"), action: #selector(toggleMute), keyEquivalent: "")
         mute.target = self
         mute.state = settings.volume == 0 ? .on : .off
 
-        let icons = menu.addItem(withTitle: "Ocultar iconos del escritorio", action: #selector(toggleIcons), keyEquivalent: "")
+        let icons = menu.addItem(withTitle: tr("Ocultar iconos del escritorio"), action: #selector(toggleIcons), keyEquivalent: "")
         icons.target = self
         icons.state = settings.hideDesktopIcons ? .on : .off
 
-        let login = menu.addItem(withTitle: "Abrir al iniciar sesión", action: #selector(toggleLogin), keyEquivalent: "")
+        let login = menu.addItem(withTitle: tr("Abrir al iniciar sesión"), action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
         login.state = LoginItem.isEnabled ? .on : .off
 
         menu.addItem(.separator())
         let updating = Updater.shared.state != .idle
-        let update = menu.addItem(withTitle: updating ? "Actualizando…" : "Buscar actualizaciones…",
+        let update = menu.addItem(withTitle: updating ? tr("Actualizando…") : tr("Buscar actualizaciones…"),
                                   action: updating ? nil : #selector(checkForUpdates), keyEquivalent: "")
         update.target = self
-        let coffee = menu.addItem(withTitle: "Invítame a un café…", action: #selector(openBuyMeACoffee), keyEquivalent: "")
+        let coffee = menu.addItem(withTitle: tr("Invítame a un café…"), action: #selector(openBuyMeACoffee), keyEquivalent: "")
         coffee.target = self
         coffee.image = NSImage(systemSymbolName: "cup.and.saucer", accessibilityDescription: nil)
         let version = menu.addItem(withTitle: "Wallpy \(Updater.currentVersion)", action: nil, keyEquivalent: "")
         version.isEnabled = false
-        menu.addItem(withTitle: "Salir de Wallpy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: tr("Salir de Wallpy"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
     @objc func showLibrary() {

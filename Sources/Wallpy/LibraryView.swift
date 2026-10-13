@@ -10,6 +10,7 @@ enum LibrarySection: Hashable {
 struct LibraryView: View {
     @State private var section: LibrarySection = .library
     @State private var editorSource: EditorSource?
+    @ObservedObject private var localizer = Localizer.shared
 
     var body: some View {
         HStack(spacing: 0) {
@@ -24,6 +25,7 @@ struct LibraryView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .id(localizer.language)
         .background(Theme.window)
         .foregroundStyle(Theme.text)
         .font(.system(size: 13))
@@ -59,14 +61,14 @@ private struct Sidebar: View {
             .padding(.horizontal, 8)
 
             VStack(spacing: 2) {
-                navItem("Biblioteca", "square.grid.2x2", .library, count: library.videos.count)
-                navItem("Originales", "film", .originals, count: originals.originals.count)
-                navItem("Ajustes", "slider.horizontal.3", .settings, count: nil)
+                navItem(tr("Biblioteca"), "square.grid.2x2", .library, count: library.videos.count)
+                navItem(tr("Originales"), "film", .originals, count: originals.originals.count)
+                navItem(tr("Ajustes"), "slider.horizontal.3", .settings, count: nil)
             }
 
             if !manager.screens.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    SectionLabel("Pantallas").padding(.horizontal, 10)
+                    SectionLabel(tr("Pantallas")).padding(.horizontal, 10)
                     ForEach(manager.screens) { screen in
                         let video = library.video(id: settings.assignments[screen.id])
                         HStack(spacing: 10) {
@@ -82,7 +84,7 @@ private struct Sidebar: View {
                             .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.lineStrong) }
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(screen.name).fontWeight(.medium).lineLimit(1)
-                                Text(video?.name ?? "Sin fondo")
+                                Text(video?.name ?? tr("Sin fondo"))
                                     .font(.system(size: 11)).foregroundStyle(Theme.text3).lineLimit(1)
                             }
                         }
@@ -97,15 +99,15 @@ private struct Sidebar: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Circle().fill(settings.pausedManually ? Theme.warn : Theme.ok).frame(width: 8, height: 8)
-                    Text(settings.pausedManually ? "En pausa" : "Reproduciendo").fontWeight(.medium)
+                    Text(settings.pausedManually ? tr("En pausa") : tr("Reproduciendo")).fontWeight(.medium)
                 }
-                Text(settings.pauseWhenCovered ? "Se pausa cuando las ventanas tapan el escritorio." : "Se reproduce siempre.")
+                Text(settings.pauseWhenCovered ? tr("Se pausa cuando las ventanas tapan el escritorio.") : tr("Se reproduce siempre."))
                     .font(.system(size: 11)).foregroundStyle(Theme.text3)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
                     settings.pausedManually.toggle()
                 } label: {
-                    Label(settings.pausedManually ? "Reanudar fondos" : "Pausar fondos",
+                    Label(settings.pausedManually ? tr("Reanudar fondos") : tr("Pausar fondos"),
                           systemImage: settings.pausedManually ? "play.fill" : "pause.fill")
                 }
                 .buttonStyle(WallpyButtonStyle(kind: .secondary, height: 30, fullWidth: true))
@@ -114,7 +116,7 @@ private struct Sidebar: View {
             .background(Theme.field, in: RoundedRectangle(cornerRadius: 10))
             .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.line) }
 
-            Text("Versión \(Updater.currentVersion)")
+            Text(tr("Versión %@", Updater.currentVersion))
                 .font(.system(size: 11)).foregroundStyle(Theme.text3)
                 .padding(.horizontal, 10)
         }
@@ -202,7 +204,7 @@ private struct LibraryPane: View {
                             Button(action: openPanel) {
                                 VStack(spacing: 8) {
                                     Image(systemName: "plus").font(.system(size: 20))
-                                    Text("Arrastra vídeos o imágenes aquí")
+                                    Text(tr("Arrastra vídeos o imágenes aquí"))
                                 }
                                 .foregroundStyle(Theme.text2)
                                 .frame(maxWidth: .infinity)
@@ -239,16 +241,16 @@ private struct LibraryPane: View {
         }
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted, perform: handleDrop)
         .onAppear { if selection == nil { selection = library.videos.first?.id } }
-        .alert("No se pudieron añadir algunos archivos",
+        .alert(tr("No se pudieron añadir algunos archivos"),
                isPresented: Binding(get: { !errors.isEmpty }, set: { if !$0 { errors = [] } })) {
-            Button("OK") { errors = [] }
+            Button(tr("OK")) { errors = [] }
         } message: {
             Text(errors.joined(separator: "\n"))
         }
-        .confirmationDialog("Este fondo está en uso. ¿Seguro que quieres eliminarlo?",
+        .confirmationDialog(tr("Este fondo está en uso. ¿Seguro que quieres eliminarlo?"),
                             isPresented: Binding(get: { pendingDelete != nil },
                                                  set: { if !$0 { pendingDelete = nil } })) {
-            Button("Eliminar", role: .destructive) {
+            Button(tr("Eliminar"), role: .destructive) {
                 if let video = pendingDelete { delete(video) }
                 pendingDelete = nil
             }
@@ -259,21 +261,21 @@ private struct LibraryPane: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Text("Biblioteca").font(.system(size: 20, weight: .semibold))
+            Text(tr("Biblioteca")).font(.system(size: 20, weight: .semibold))
             if library.importing > 0 {
                 ProgressView().controlSize(.small)
-                Text("Importando…").foregroundStyle(Theme.text2)
+                Text(tr("Importando…")).foregroundStyle(Theme.text2)
             }
             Spacer()
-            SegmentedControl(options: [("Todo", MediaFilter.all), ("Vídeos", .videos), ("Imágenes", .images)],
+            SegmentedControl(options: [(tr("Todo"), MediaFilter.all), (tr("Vídeos"), .videos), (tr("Imágenes"), .images)],
                              selection: $filter)
-            WallpyTextField(placeholder: "Buscar", text: $search, icon: "magnifyingglass")
+            WallpyTextField(placeholder: tr("Buscar"), text: $search, icon: "magnifyingglass")
                 .frame(width: 190)
             Button { editorSource = .youtube } label: {
-                Label("Desde YouTube…", systemImage: "arrow.down.to.line")
+                Label(tr("Desde YouTube…"), systemImage: "arrow.down.to.line")
             }
             .buttonStyle(.wallpySecondary)
-            Button(action: openPanel) { Label("Añadir…", systemImage: "plus") }
+            Button(action: openPanel) { Label(tr("Añadir…"), systemImage: "plus") }
                 .buttonStyle(.wallpyPrimary)
         }
         .padding(.horizontal, 24)
@@ -285,12 +287,12 @@ private struct LibraryPane: View {
             Image(systemName: "play.rectangle.on.rectangle")
                 .font(.system(size: 44))
                 .foregroundStyle(Theme.text3)
-            Text("Arrastra vídeos o imágenes aquí").font(.system(size: 16, weight: .semibold))
-            Text("Vídeos: MP4, MOV, M4V. Imágenes: JPG, PNG, HEIC, WebP, TIFF. Los GIF se convierten en vídeo.")
+            Text(tr("Arrastra vídeos o imágenes aquí")).font(.system(size: 16, weight: .semibold))
+            Text(tr("Vídeos: MP4, MOV, M4V. Imágenes: JPG, PNG, HEIC, WebP, TIFF. Los GIF se convierten en vídeo."))
                 .foregroundStyle(Theme.text2)
             HStack(spacing: 10) {
-                Button("Desde YouTube…") { editorSource = .youtube }.buttonStyle(.wallpySecondary)
-                Button("Añadir…", action: openPanel).buttonStyle(.wallpyPrimary)
+                Button(tr("Desde YouTube…")) { editorSource = .youtube }.buttonStyle(.wallpySecondary)
+                Button(tr("Añadir…"), action: openPanel).buttonStyle(.wallpyPrimary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -298,18 +300,18 @@ private struct LibraryPane: View {
 
     @ViewBuilder
     private func menu(for video: Video) -> some View {
-        Button("Poner en todas las pantallas") { manager.setVideoOnAllScreens(video) }
+        Button(tr("Poner en todas las pantallas")) { manager.setVideoOnAllScreens(video) }
         if manager.screens.count > 1 {
             ForEach(manager.screens) { screen in
-                Button("Poner en \(screen.name)") { manager.setVideo(video, onScreen: screen.id) }
+                Button(tr("Poner en %@", screen.name)) { manager.setVideo(video, onScreen: screen.id) }
             }
         }
         Divider()
         if !video.isImage {
-            Button("Recortar y optimizar…") { editorSource = .library(video) }
+            Button(tr("Recortar y optimizar…")) { editorSource = .library(video) }
         }
-        Button("Mostrar en Finder") { NSWorkspace.shared.activateFileViewerSelecting([video.url]) }
-        Button("Eliminar", role: .destructive) { requestDelete(video) }
+        Button(tr("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([video.url]) }
+        Button(tr("Eliminar"), role: .destructive) { requestDelete(video) }
     }
 
     private func screensUsing(_ video: Video) -> [String] {
@@ -337,7 +339,7 @@ private struct LibraryPane: View {
         panel.allowedContentTypes = VideoLibrary.allowedTypes
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.prompt = "Añadir"
+        panel.prompt = tr("Añadir")
         guard panel.runModal() == .OK else { return }
         importURLs(panel.urls)
     }
@@ -384,7 +386,7 @@ private struct VideoCard: View {
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(alignment: .topLeading) {
-                    if inUse { badge(dot: Theme.ok, "En uso") }
+                    if inUse { badge(dot: Theme.ok, tr("En uso")) }
                 }
                 .overlay(alignment: .topTrailing) {
                     if video.isImage {
@@ -393,12 +395,12 @@ private struct VideoCard: View {
                             .frame(width: 24, height: 24)
                             .background(Theme.window.opacity(0.82), in: RoundedRectangle(cornerRadius: 6))
                             .padding(8)
-                            .accessibilityLabel("Imagen")
+                            .accessibilityLabel(tr("Imagen"))
                     }
                 }
                 .overlay(alignment: .bottomLeading) {
                     if video.width < 1280 && video.height < 1280 {
-                        Label("Resolución baja", systemImage: "exclamationmark.triangle")
+                        Label(tr("Resolución baja"), systemImage: "exclamationmark.triangle")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.warn)
                             .padding(.horizontal, 8).padding(.vertical, 3)
@@ -457,24 +459,24 @@ private struct Inspector: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Nombre").font(.system(size: 11)).foregroundStyle(Theme.text3)
-                    WallpyTextField(placeholder: "Nombre", text: $name) { commitName() }
+                    Text(tr("Nombre")).font(.system(size: 11)).foregroundStyle(Theme.text3)
+                    WallpyTextField(placeholder: tr("Nombre"), text: $name) { commitName() }
                         .onChange(of: name) { _, _ in commitName() }
                 }
 
                 Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                     GridRow {
-                        meta("Tipo", video.isImage ? "Imagen" : "Vídeo")
-                        meta("Resolución", video.resolutionLabel, mono: true)
+                        meta(tr("Tipo"), video.isImage ? tr("Imagen") : tr("Vídeo"))
+                        meta(tr("Resolución"), video.resolutionLabel, mono: true)
                     }
                     GridRow {
-                        meta("Duración", video.isImage ? "—" : video.durationLabel, mono: true)
-                        meta("Tamaño", fileSize, mono: true)
+                        meta(tr("Duración"), video.isImage ? "—" : video.durationLabel, mono: true)
+                        meta(tr("Tamaño"), fileSize, mono: true)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionLabel("En pantalla")
+                    SectionLabel(tr("En pantalla"))
                     ForEach(manager.screens) { screen in
                         let active = settings.assignments[screen.id] == video.id
                         Button {
@@ -503,18 +505,18 @@ private struct Inspector: View {
                 }
 
                 VStack(spacing: 8) {
-                    Button("Poner en todas las pantallas") { manager.setVideoOnAllScreens(video) }
+                    Button(tr("Poner en todas las pantallas")) { manager.setVideoOnAllScreens(video) }
                         .buttonStyle(WallpyButtonStyle(kind: .primary, height: 38, fullWidth: true))
                     if !video.isImage {
                         Button { editorSource = .library(video) } label: {
-                            Label("Recortar y optimizar…", systemImage: "scissors")
+                            Label(tr("Recortar y optimizar…"), systemImage: "scissors")
                         }
                         .buttonStyle(WallpyButtonStyle(kind: .secondary, height: 34, fullWidth: true))
                     }
                     HStack(spacing: 8) {
-                        Button("Mostrar en Finder") { NSWorkspace.shared.activateFileViewerSelecting([video.url]) }
+                        Button(tr("Mostrar en Finder")) { NSWorkspace.shared.activateFileViewerSelecting([video.url]) }
                             .buttonStyle(WallpyButtonStyle(kind: .ghost, height: 32, fullWidth: true))
-                        IconButton(symbol: "trash", label: "Eliminar de la biblioteca", kind: .danger, action: onDelete)
+                        IconButton(symbol: "trash", label: tr("Eliminar de la biblioteca"), kind: .danger, action: onDelete)
                             .frame(width: 40)
                     }
                 }
@@ -574,20 +576,20 @@ private struct OriginalsPane: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Originales").font(.system(size: 20, weight: .semibold))
-                    Text("Vídeos completos guardados para sacar más fondos sin volver a descargarlos.")
+                    Text(tr("Originales")).font(.system(size: 20, weight: .semibold))
+                    Text(tr("Vídeos completos guardados para sacar más fondos sin volver a descargarlos."))
                         .foregroundStyle(Theme.text2)
                 }
                 Spacer()
                 if !originals.originals.isEmpty {
                     VStack(alignment: .trailing, spacing: 1) {
-                        Text("Espacio usado").font(.system(size: 11)).foregroundStyle(Theme.text3)
+                        Text(tr("Espacio usado")).font(.system(size: 11)).foregroundStyle(Theme.text3)
                         Text(ByteCountFormatter.string(fromByteCount: originals.totalBytes, countStyle: .file))
                             .monospacedText(size: 13)
                     }
                 }
                 Button { editorSource = .youtube } label: {
-                    Label("Desde YouTube…", systemImage: "arrow.down.to.line")
+                    Label(tr("Desde YouTube…"), systemImage: "arrow.down.to.line")
                 }
                 .buttonStyle(.wallpySecondary)
             }
@@ -598,8 +600,8 @@ private struct OriginalsPane: View {
             if originals.originals.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "film").font(.system(size: 44)).foregroundStyle(Theme.text3)
-                    Text("Aún no hay originales").font(.system(size: 16, weight: .semibold))
-                    Text("Al descargar de YouTube, activa «Guardar en Originales» en el editor para conservar el vídeo completo.")
+                    Text(tr("Aún no hay originales")).font(.system(size: 16, weight: .semibold))
+                    Text(tr("Al descargar de YouTube, activa «Guardar en Originales» en el editor para conservar el vídeo completo."))
                         .foregroundStyle(Theme.text2)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 440)
@@ -616,9 +618,9 @@ private struct OriginalsPane: View {
                 }
             }
         }
-        .confirmationDialog("¿Eliminar «\(pendingDelete?.name ?? "")»? Los fondos ya creados a partir de él no se borran.",
+        .confirmationDialog(tr("¿Eliminar «%@»? Los fondos ya creados a partir de él no se borran.", pendingDelete?.name ?? ""),
                             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
-            Button("Eliminar", role: .destructive) {
+            Button(tr("Eliminar"), role: .destructive) {
                 if let original = pendingDelete { originals.delete(original) }
                 pendingDelete = nil
             }
@@ -637,17 +639,17 @@ private struct OriginalsPane: View {
                     Text("\(original.width)×\(original.height)").monospacedText()
                     Text(original.durationLabel).monospacedText()
                     Text(original.sizeLabel).monospacedText()
-                    Text("Guardado el \(original.addedAt.formatted(.dateTime.day().month(.abbreviated)))")
+                    Text(tr("Guardado el %@", original.addedAt.formatted(.dateTime.day().month(.abbreviated).locale(Localizer.shared.locale))))
                 }
                 .foregroundStyle(Theme.text2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button { open(original) } label: { Label("Crear fondos", systemImage: "scissors") }
+            Button { open(original) } label: { Label(tr("Crear fondos"), systemImage: "scissors") }
                 .buttonStyle(WallpyButtonStyle(kind: .primary, height: 34))
-            IconButton(symbol: "folder", label: "Mostrar en Finder", size: 34) {
+            IconButton(symbol: "folder", label: tr("Mostrar en Finder"), size: 34) {
                 NSWorkspace.shared.activateFileViewerSelecting([original.url])
             }
-            IconButton(symbol: "trash", label: "Eliminar original", kind: .danger, size: 34) {
+            IconButton(symbol: "trash", label: tr("Eliminar original"), kind: .danger, size: 34) {
                 pendingDelete = original
             }
         }
@@ -668,6 +670,7 @@ private struct OriginalsPane: View {
 // MARK: - Settings
 
 private struct SettingsPane: View {
+    @ObservedObject private var localizer = Localizer.shared
     @ObservedObject private var settings = Settings.shared
     @ObservedObject private var manager = WallpaperManager.shared
     @ObservedObject private var library = VideoLibrary.shared
@@ -680,7 +683,7 @@ private struct SettingsPane: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Ajustes").font(.system(size: 20, weight: .semibold))
+                Text(tr("Ajustes")).font(.system(size: 20, weight: .semibold))
                 Spacer()
             }
             .padding(.horizontal, 24)
@@ -691,6 +694,7 @@ private struct SettingsPane: View {
                 VStack(spacing: 20) {
                     screensCard
                     LazyVGrid(columns: columns, spacing: 20) {
+                        languageCard
                         energyCard
                         soundCard
                         updatesCard
@@ -705,7 +709,7 @@ private struct SettingsPane: View {
 
     private var screensCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Pantallas").font(.system(size: 14, weight: .semibold))
+            Text(tr("Pantallas")).font(.system(size: 14, weight: .semibold))
             DisplayArrangement(screens: manager.screens)
                 .frame(height: 180)
                 .background(Theme.window, in: RoundedRectangle(cornerRadius: 10))
@@ -715,7 +719,7 @@ private struct SettingsPane: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(screen.name).foregroundStyle(Theme.text2)
                         Picker(screen.name, selection: assignment(for: screen.id)) {
-                            Text("Ninguno").tag(UUID?.none)
+                            Text(tr("Ninguno")).tag(UUID?.none)
                             ForEach(library.videos) { video in
                                 Text(video.name).tag(UUID?.some(video.id))
                             }
@@ -730,23 +734,33 @@ private struct SettingsPane: View {
         .wallpyCard()
     }
 
+    private var languageCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(tr("Idioma")).font(.system(size: 14, weight: .semibold))
+            SegmentedControl(options: AppLanguage.allCases.map { ($0.nativeName, $0) },
+                             selection: $localizer.choice, expand: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .wallpyCard()
+    }
+
     private var energyCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Ahorro de energía").font(.system(size: 14, weight: .semibold)).padding(.bottom, 8)
-            SwitchRow(title: "Pausar cuando las ventanas tapan el escritorio",
-                      detail: "Recomendado: no gasta nada si no lo ves", isOn: $settings.pauseWhenCovered)
+            Text(tr("Ahorro de energía")).font(.system(size: 14, weight: .semibold)).padding(.bottom, 8)
+            SwitchRow(title: tr("Pausar cuando las ventanas tapan el escritorio"),
+                      detail: tr("Recomendado: no gasta nada si no lo ves"), isOn: $settings.pauseWhenCovered)
             divider
-            SwitchRow(title: "Pausar con batería", isOn: $settings.pauseOnBattery)
+            SwitchRow(title: tr("Pausar con batería"), isOn: $settings.pauseOnBattery)
             divider
-            SwitchRow(title: "Pausar con batería baja", isOn: $settings.pauseOnLowBattery)
+            SwitchRow(title: tr("Pausar con batería baja"), isOn: $settings.pauseOnLowBattery)
             if settings.pauseOnLowBattery {
                 Stepper(value: $settings.lowBatteryLevel, in: 5...90, step: 5) {
-                    Text("Por debajo de \(settings.lowBatteryLevel) %").foregroundStyle(Theme.text2)
+                    Text(tr("Por debajo de %d %%", settings.lowBatteryLevel)).foregroundStyle(Theme.text2)
                 }
                 .padding(.bottom, 6)
             }
             if let level = manager.power.batteryLevel {
-                Text("Batería: \(level) % · \(manager.power.onBattery ? "con batería" : "conectado")")
+                Text(tr("Batería: %d %% · %@", level, manager.power.onBattery ? tr("con batería") : tr("conectado")))
                     .font(.system(size: 11)).foregroundStyle(Theme.text3)
             }
         }
@@ -756,18 +770,18 @@ private struct SettingsPane: View {
 
     private var soundCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Sonido y escritorio").font(.system(size: 14, weight: .semibold)).padding(.bottom, 12)
+            Text(tr("Sonido y escritorio")).font(.system(size: 14, weight: .semibold)).padding(.bottom, 12)
             HStack(spacing: 12) {
-                Text("Volumen").foregroundStyle(Theme.text2).frame(width: 64, alignment: .leading)
+                Text(tr("Volumen")).foregroundStyle(Theme.text2).frame(width: 64, alignment: .leading)
                 Slider(value: $settings.volume, in: 0...1)
                 Text("\(Int((settings.volume * 100).rounded())) %")
                     .monospacedText().foregroundStyle(Theme.text2).frame(width: 44, alignment: .trailing)
             }
             .padding(.bottom, 8)
             divider
-            SwitchRow(title: "Ocultar iconos del escritorio", isOn: $settings.hideDesktopIcons)
+            SwitchRow(title: tr("Ocultar iconos del escritorio"), isOn: $settings.hideDesktopIcons)
             divider
-            SwitchRow(title: "Abrir al iniciar sesión", isOn: $launchAtLogin)
+            SwitchRow(title: tr("Abrir al iniciar sesión"), isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, enabled in
                     LoginItem.setEnabled(enabled)
                     launchAtLogin = LoginItem.isEnabled
@@ -779,15 +793,15 @@ private struct SettingsPane: View {
 
     private var updatesCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Actualizaciones").font(.system(size: 14, weight: .semibold)).padding(.bottom, 8)
-            SwitchRow(title: "Buscar actualizaciones automáticamente", isOn: $autoUpdate)
+            Text(tr("Actualizaciones")).font(.system(size: 14, weight: .semibold)).padding(.bottom, 8)
+            SwitchRow(title: tr("Buscar actualizaciones automáticamente"), isOn: $autoUpdate)
                 .onChange(of: autoUpdate) { _, value in updater.autoCheck = value }
             divider
             HStack {
-                Text("Versión ").foregroundStyle(Theme.text2) + Text(Updater.currentVersion).font(.system(size: 13, design: .monospaced))
+                Text(tr("Versión ")).foregroundStyle(Theme.text2) + Text(Updater.currentVersion).font(.system(size: 13, design: .monospaced))
                 Spacer()
                 if updater.state != .idle { ProgressView().controlSize(.small) }
-                Button("Buscar ahora") { Task { await updater.check(userInitiated: true) } }
+                Button(tr("Buscar ahora")) { Task { await updater.check(userInitiated: true) } }
                     .buttonStyle(WallpyButtonStyle(kind: .secondary, height: 30))
                     .disabled(updater.state != .idle)
             }
@@ -799,19 +813,19 @@ private struct SettingsPane: View {
 
     private var toolsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Herramientas").font(.system(size: 14, weight: .semibold))
+            Text(tr("Herramientas")).font(.system(size: 14, weight: .semibold))
             ForEach([ExternalTool.ytDlp, .ffmpeg], id: \.rawValue) { tool in
                 let installed = tool.url != nil
                 HStack(spacing: 10) {
                     Circle().fill(installed ? Theme.ok : Theme.warn).frame(width: 8, height: 8)
                     Text(tool.rawValue)
                     Spacer()
-                    Text(installed ? "Instalado" : "No instalado").foregroundStyle(Theme.text3)
+                    Text(installed ? tr("Instalado") : tr("No instalado")).foregroundStyle(Theme.text3)
                 }
             }
             Text(ExternalTool.missing.isEmpty
-                 ? "Necesarios para descargar de YouTube, el editor de bucles y convertir GIF."
-                 : "Instálalos con: brew install yt-dlp ffmpeg")
+                 ? tr("Necesarios para descargar de YouTube, el editor de bucles y convertir GIF.")
+                 : tr("Instálalos con: brew install yt-dlp ffmpeg"))
                 .font(.system(size: 11)).foregroundStyle(Theme.text3)
                 .textSelection(.enabled)
         }

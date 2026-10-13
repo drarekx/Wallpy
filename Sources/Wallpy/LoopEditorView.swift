@@ -47,9 +47,9 @@ struct EditorSheet: View {
                     Image(systemName: "exclamationmark.triangle").font(.system(size: 30)).foregroundStyle(Theme.warn)
                     Text(message).textSelection(.enabled).foregroundStyle(Theme.text2).frame(maxWidth: 520)
                     HStack(spacing: 8) {
-                        Button("Cerrar") { close() }.buttonStyle(.wallpySecondary)
+                        Button(tr("Cerrar")) { close() }.buttonStyle(.wallpySecondary)
                         if case .youtube = source {
-                            Button("Reintentar") { step = .link }.buttonStyle(.wallpyPrimary)
+                            Button(tr("Reintentar")) { step = .link }.buttonStyle(.wallpyPrimary)
                         }
                     }
                 }
@@ -66,7 +66,7 @@ struct EditorSheet: View {
                text.contains("youtu") {
                 link = text  // Pre-fill if a YouTube link is already on the clipboard.
             }
-            if case .library(let video) = source { prepare(file: video.url, name: video.name + " (bucle)") }
+            if case .library(let video) = source { prepare(file: video.url, name: video.name + tr(" (bucle)")) }
         }
     }
 
@@ -78,16 +78,16 @@ struct EditorSheet: View {
                     .frame(width: 36, height: 36)
                     .overlay { Image(systemName: "arrow.down.to.line").foregroundStyle(Theme.accentText) }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Descargar de YouTube").font(.system(size: 16, weight: .semibold))
-                    Text("Al terminar se abre el editor para elegir el bucle.")
+                    Text(tr("Descargar de YouTube")).font(.system(size: 16, weight: .semibold))
+                    Text(tr("Al terminar se abre el editor para elegir el bucle."))
                         .font(.system(size: 12)).foregroundStyle(Theme.text3)
                 }
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text("Enlace del vídeo").foregroundStyle(Theme.text2)
+                Text(tr("Enlace del vídeo")).foregroundStyle(Theme.text2)
                 HStack(spacing: 8) {
                     WallpyTextField(placeholder: "https://www.youtube.com/watch?v=…", text: $link, onSubmit: startDownload)
-                    Button("Pegar") {
+                    Button(tr("Pegar")) {
                         if let text = NSPasteboard.general.string(forType: .string) {
                             link = text.trimmingCharacters(in: .whitespacesAndNewlines)
                         }
@@ -96,23 +96,23 @@ struct EditorSheet: View {
                 }
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text("Calidad máxima").foregroundStyle(Theme.text2)
+                Text(tr("Calidad máxima")).foregroundStyle(Theme.text2)
                 SegmentedControl(options: [("1080p", 1080), ("1440p", 1440), ("4K", 2160)],
                                  selection: $maxHeight, expand: true)
             }
             if !ExternalTool.missing.isEmpty {
-                Label("Falta: \(ExternalTool.missing.map(\.rawValue).joined(separator: ", ")). Instala con «brew install yt-dlp ffmpeg».",
+                Label(tr("Falta: %@. Instala con «brew install yt-dlp ffmpeg».", ExternalTool.missing.map(\.rawValue).joined(separator: ", ")),
                       systemImage: "exclamationmark.triangle")
                     .foregroundStyle(Theme.warn)
             }
-            Text("Descarga solo vídeos tuyos, con licencia libre o con permiso de su autor.")
+            Text(tr("Descarga solo vídeos tuyos, con licencia libre o con permiso de su autor."))
                 .font(.system(size: 11)).foregroundStyle(Theme.text3)
             HStack(spacing: 8) {
                 Spacer()
-                Button("Cancelar") { close() }
+                Button(tr("Cancelar")) { close() }
                     .buttonStyle(WallpyButtonStyle(kind: .ghost, height: 34))
                     .keyboardShortcut(.cancelAction)
-                Button("Descargar", action: startDownload)
+                Button(tr("Descargar"), action: startDownload)
                     .buttonStyle(WallpyButtonStyle(kind: .primary, height: 34))
                     .keyboardShortcut(.defaultAction)
                     .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty || !ExternalTool.missing.isEmpty)
@@ -125,11 +125,11 @@ struct EditorSheet: View {
     private func startDownload() {
         let trimmed = link.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        step = .working("Descargando…", 0)
+        step = .working(tr("Descargando…"), 0)
         job = Task {
             do {
                 let result = try await YouTubeDownloader.download(trimmed, maxHeight: maxHeight, into: workDir) { value in
-                    Task { @MainActor in step = .working("Descargando…", value) }
+                    Task { @MainActor in step = .working(tr("Descargando…"), value) }
                 }
                 prepare(file: result.file, name: result.title)
             } catch is CancellationError {
@@ -142,10 +142,10 @@ struct EditorSheet: View {
 
     /// Loads the file; transcodes it first if AVFoundation can't preview it.
     private func prepare(file: URL, name: String) {
-        step = .working("Analizando vídeo…", nil)
+        step = .working(tr("Analizando vídeo…"), nil)
         job = Task {
             guard let info = await SourceInfo.load(file) else {
-                step = .failed("No se pudo leer el vídeo.")
+                step = .failed(tr("No se pudo leer el vídeo."))
                 return
             }
             if info.isPreviewable {
@@ -153,16 +153,16 @@ struct EditorSheet: View {
                 return
             }
             let converted = workDir.appendingPathComponent("preview.mp4")
-            step = .working("Convirtiendo a un formato compatible…", 0)
+            step = .working(tr("Convirtiendo a un formato compatible…"), 0)
             do {
                 try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
                 try await LoopExporter.makePreviewable(source: file, to: converted, duration: info.duration) { value in
-                    Task { @MainActor in step = .working("Convirtiendo a un formato compatible…", value) }
+                    Task { @MainActor in step = .working(tr("Convirtiendo a un formato compatible…"), value) }
                 }
                 if let convertedInfo = await SourceInfo.load(converted) {
                     openEditor(converted, convertedInfo, name)
                 } else {
-                    step = .failed("No se pudo convertir el vídeo.")
+                    step = .failed(tr("No se pudo convertir el vídeo."))
                 }
             } catch is CancellationError {
             } catch ToolError.cancelled {
@@ -210,7 +210,7 @@ private struct WorkingView: View {
             }
             HStack {
                 Spacer()
-                Button("Cancelar", action: onCancel).buttonStyle(WallpyButtonStyle(kind: .secondary, height: 30))
+                Button(tr("Cancelar"), action: onCancel).buttonStyle(WallpyButtonStyle(kind: .secondary, height: 30))
             }
         }
         .padding(24)

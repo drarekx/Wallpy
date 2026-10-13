@@ -45,12 +45,15 @@ git tag v1.5.0 && git push origin v1.5.0
 | `Theme.swift` | Colores, botones y controles comunes (estilo oscuro) |
 | `Updater.swift` | Autoactualización desde GitHub Releases con verificación SHA-256 |
 | `Migration.swift` | Migra datos del nombre antiguo (MyWallpaper) |
+| `Localization.swift` | Idiomas (en, es, ca): `tr()`, `Localizer`, tablas de traducción |
 
 Datos del usuario: `~/Library/Application Support/Wallpy/{Videos,Originals}`. Temporales: `$TMPDIR/Wallpy-*` (se borran al cerrar el editor y al arrancar).
 
 ## Convenciones
 
-- Interfaz en castellano; código, comentarios y commits en inglés.
+- Código, comentarios y commits en inglés. La interfaz está traducida a castellano, inglés y catalán.
+- **Todo texto visible pasa por `tr("…")`** (o `tr("… %@ …", arg)` si lleva datos). La clave es el texto en castellano; añadir la traducción a las tablas `en` y `ca` de `Localization.swift` con los mismos `%@`/`%d`. Nunca interpolar (`"\(x)"`) dentro de un texto traducible.
+- El idioma cambia en caliente: las vistas raíz observan `Localizer.shared` y usan `.id(localizer.language)`. Para probar un idioma sin tocar los ajustes: `Wallpy -appLanguage ca`.
 - Estilo visual: usar siempre `Theme` y sus componentes (`WallpyButtonStyle`, `SegmentedControl`, `SwitchRow`, `wallpyCard`…), nunca colores sueltos. Maqueta de referencia: https://claude.ai/artifact/91yUdiBHZoDwh5x3i9LLBK
 - Tipos `@MainActor` para estado de UI; lo que corre fuera (ffmpeg, decodificar imágenes) va en funciones `nonisolated`/colas de fondo.
 - Mantener el README al día cuando cambian funciones visibles.

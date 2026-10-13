@@ -31,7 +31,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "Editor de bucle — \(name)"
+        window.title = tr("Editor de bucle — %@", name)
         window.appearance = NSAppearance(named: .darkAqua)
         window.minSize = NSSize(width: 1000, height: 680)
         window.isReleasedWhenClosed = false
@@ -500,6 +500,7 @@ private enum EditorColors {
 struct EditorRootView: View {
     @ObservedObject var model: EditorModel
     let onClose: () -> Void
+    @ObservedObject private var localizer = Localizer.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -518,6 +519,7 @@ struct EditorRootView: View {
                     .frame(width: 330)
             }
         }
+        .id(localizer.language)
         .background(EditorColors.background)
         .foregroundStyle(Theme.text)
         .tint(Theme.accent)
@@ -531,7 +533,7 @@ private struct EditorHeader: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "scissors").foregroundStyle(Theme.accentText)
-            Text("Editor de bucle").fontWeight(.semibold)
+            Text(tr("Editor de bucle")).fontWeight(.semibold)
             Text(model.baseName).foregroundStyle(Theme.text3).lineLimit(1)
             Spacer()
             Text("\(model.info.width)×\(model.info.height) · \(Int(model.info.fps.rounded())) fps · \(model.timecode(model.duration))")
@@ -554,7 +556,7 @@ private struct MonitorView: View {
             PlayerViewRepresentable(player: model.player)
             HStack(spacing: 8) {
                 if model.currentTime >= model.inPoint && model.currentTime <= model.outPoint {
-                    Text("DENTRO DEL BUCLE")
+                    Text(tr("DENTRO DEL BUCLE"))
                         .font(.caption2.weight(.bold))
                         .padding(.horizontal, 6).padding(.vertical, 3)
                         .background(EditorColors.range.opacity(0.85), in: RoundedRectangle(cornerRadius: 3))
@@ -583,8 +585,8 @@ private struct TransportBar: View {
             Spacer()
 
             Group {
-                iconButton("arrow.left.to.line", "Ir a la entrada (↑)") { model.goToIn() }
-                iconButton("backward.frame", "Fotograma anterior (←)") { model.step(frames: -1) }
+                iconButton("arrow.left.to.line", tr("Ir a la entrada (↑)")) { model.goToIn() }
+                iconButton("backward.frame", tr("Fotograma anterior (←)")) { model.step(frames: -1) }
                 Button { model.togglePlay() } label: {
                     Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 15, weight: .semibold))
@@ -593,25 +595,25 @@ private struct TransportBar: View {
                         .background(Theme.text, in: RoundedRectangle(cornerRadius: 9))
                 }
                 .buttonStyle(.plain)
-                .help("Reproducir / pausa (Espacio)")
-                iconButton("forward.frame", "Fotograma siguiente (→)") { model.step(frames: 1) }
-                iconButton("arrow.right.to.line", "Ir a la salida (↓)") { model.goToOut() }
+                .help(tr("Reproducir / pausa (Espacio)"))
+                iconButton("forward.frame", tr("Fotograma siguiente (→)")) { model.step(frames: 1) }
+                iconButton("arrow.right.to.line", tr("Ir a la salida (↓)")) { model.goToOut() }
             }
 
             Divider().frame(height: 20)
 
-            Button { model.markIn() } label: { Label("Entrada", systemImage: "chevron.left.to.line") }
-                .help("Marcar entrada (I)")
-            Button { model.markOut() } label: { Label("Salida", systemImage: "chevron.right.to.line") }
-                .help("Marcar salida (O)")
-            Toggle(isOn: $model.loopRange) { Label("Repetir tramo", systemImage: "repeat") }
+            Button { model.markIn() } label: { Label(tr("Entrada"), systemImage: "chevron.left.to.line") }
+                .help(tr("Marcar entrada (I)"))
+            Button { model.markOut() } label: { Label(tr("Salida"), systemImage: "chevron.right.to.line") }
+                .help(tr("Marcar salida (O)"))
+            Toggle(isOn: $model.loopRange) { Label(tr("Repetir tramo"), systemImage: "repeat") }
                 .toggleStyle(.button)
-                .help("Reproducir solo entre entrada y salida (L)")
+                .help(tr("Reproducir solo entre entrada y salida (L)"))
 
             Spacer()
 
             VStack(alignment: .trailing, spacing: 1) {
-                Text("Duración del bucle").font(.caption2).foregroundStyle(.secondary)
+                Text(tr("Duración del bucle")).font(.caption2).foregroundStyle(.secondary)
                 Text(String(format: "%.2f s", model.options.crossfade > 0 && model.rangeLength > model.options.crossfade * 2.5
                             ? model.rangeLength - model.options.crossfade : model.rangeLength))
                     .font(.system(.body, design: .monospaced))
@@ -676,12 +678,12 @@ private struct TimelineView: View {
                     .frame(width: 140)
                     .controlSize(.small)
                 Image(systemName: "plus.magnifyingglass").foregroundStyle(.secondary)
-                Button("Ajustar al tramo") { model.zoomToRange() }
+                Button(tr("Ajustar al tramo")) { model.zoomToRange() }
                     .controlSize(.small)
-                Button("Ver todo") { model.setView(start: 0, length: model.duration) }
+                Button(tr("Ver todo")) { model.setView(start: 0, length: model.duration) }
                     .controlSize(.small)
             }
-            Text("Arrastra para buscar · bordes azules: entrada/salida · ⌥ arrastrar: mover tramo · clic en la franja de tramos: seleccionar · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · ⇧← ⇧→ 1 s · + / − zoom")
+            Text(tr("Arrastra para buscar · bordes azules: entrada/salida · ⌥ arrastrar: mover tramo · clic en la franja de tramos: seleccionar · N nuevo tramo · I / O marcan · Espacio reproduce · ← → fotograma · ⇧← ⇧→ 1 s · + / − zoom"))
                 .font(.caption2).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -915,7 +917,7 @@ private struct OverviewBar: View {
                 model.setView(start: center - model.viewLength / 2)
             })
         }
-        .help("Mapa del vídeo completo: arrastra para moverte por la línea de tiempo")
+        .help(tr("Mapa del vídeo completo: arrastra para moverte por la línea de tiempo"))
     }
 }
 
@@ -946,63 +948,63 @@ private struct InspectorView: View {
                     Button {
                         model.addClip()
                     } label: {
-                        Label("Nuevo tramo en el cabezal (N)", systemImage: "plus")
+                        Label(tr("Nuevo tramo en el cabezal (N)"), systemImage: "plus")
                     }
                     .buttonStyle(.borderless)
                 } header: {
-                    Text("Tramos (\(model.clips.count))")
+                    Text(tr("Tramos (%d)", model.clips.count))
                 } footer: {
-                    Text("Haz tantos fondos como quieras del mismo vídeo. Cada tramo se exporta como un fondo independiente.")
+                    Text(tr("Haz tantos fondos como quieras del mismo vídeo. Cada tramo se exporta como un fondo independiente."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
                 if let index = model.selectedIndex {
-                    Section("Tramo seleccionado") {
-                        TextField("Nombre", text: Binding(
+                    Section(tr("Tramo seleccionado")) {
+                        TextField(tr("Nombre"), text: Binding(
                             get: { model.clips[safe: index]?.name ?? "" },
                             set: { model.renameSelected($0) }))
-                        LabeledContent("Entrada") {
+                        LabeledContent(tr("Entrada")) {
                             Text(model.timecode(model.inPoint)).font(.system(.body, design: .monospaced))
                         }
-                        LabeledContent("Salida") {
+                        LabeledContent(tr("Salida")) {
                             Text(model.timecode(model.outPoint)).font(.system(.body, design: .monospaced))
                         }
-                        LabeledContent("Duración") {
+                        LabeledContent(tr("Duración")) {
                             Text(String(format: "%.2f s", model.rangeLength)).font(.system(.body, design: .monospaced))
                         }
                     }
                 }
 
-                Section("Bucle y optimización (todos los tramos)") {
-                    Picker("Fundido", selection: $model.options.crossfade) {
-                        Text("Sin fundido").tag(0.0)
-                        Text("0,5 s").tag(0.5)
+                Section(tr("Bucle y optimización (todos los tramos)")) {
+                    Picker(tr("Fundido"), selection: $model.options.crossfade) {
+                        Text(tr("Sin fundido")).tag(0.0)
+                        Text(tr("0,5 s")).tag(0.5)
                         Text("1 s").tag(1.0)
                         Text("2 s").tag(2.0)
                     }
-                    Picker("Resolución", selection: $model.options.maxShortSide) {
-                        Text("Original").tag(Int?.none)
+                    Picker(tr("Resolución"), selection: $model.options.maxShortSide) {
+                        Text(tr("Original")).tag(Int?.none)
                         Text("4K").tag(Int?.some(2160))
                         Text("1440p").tag(Int?.some(1440))
                         Text("1080p").tag(Int?.some(1080))
                     }
-                    Picker("Calidad", selection: $model.options.quality) {
-                        ForEach(ExportQuality.allCases) { Text($0.rawValue).tag($0) }
+                    Picker(tr("Calidad"), selection: $model.options.quality) {
+                        ForEach(ExportQuality.allCases) { Text($0.label).tag($0) }
                     }
-                    Toggle("Limitar a 30 fps", isOn: Binding(
+                    Toggle(tr("Limitar a 30 fps"), isOn: Binding(
                         get: { model.options.fps == 30 }, set: { model.options.fps = $0 ? 30 : nil }))
                         .disabled(model.info.fps <= 30.5)
-                    Toggle("Mantener sonido", isOn: $model.options.keepAudio)
+                    Toggle(tr("Mantener sonido"), isOn: $model.options.keepAudio)
                         .disabled(!model.info.hasAudio)
-                    Toggle("Poner como fondo al terminar", isOn: $model.setAsWallpaper)
+                    Toggle(tr("Poner como fondo al terminar"), isOn: $model.setAsWallpaper)
                 }
 
                 if model.canKeepOriginal {
-                    Section("Vídeo original") {
-                        Toggle("Guardar en «Originales» al cerrar", isOn: $model.keepOriginal)
+                    Section(tr("Vídeo original")) {
+                        Toggle(tr("Guardar en «Originales» al cerrar"), isOn: $model.keepOriginal)
                         Text(model.keepOriginal
-                             ? "Podrás volver a abrirlo para sacar más fondos sin descargarlo otra vez (\(model.originalSizeLabel))."
-                             : "Se borrará al cerrar el editor (\(model.originalSizeLabel)).")
+                             ? tr("Podrás volver a abrirlo para sacar más fondos sin descargarlo otra vez (%@).", model.originalSizeLabel)
+                             : tr("Se borrará al cerrar el editor (%@).", model.originalSizeLabel))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -1013,14 +1015,14 @@ private struct InspectorView: View {
             VStack(spacing: 10) {
                 if model.isExporting {
                     let done = model.clips.filter { $0.status == .done }.count
-                    Text("Creando fondos… (\(done) hechos)").font(.caption)
-                    Button("Cancelar exportación") { model.cancelExport() }
+                    Text(tr("Creando fondos… (%d hechos)", done)).font(.caption)
+                    Button(tr("Cancelar exportación")) { model.cancelExport() }
                         .frame(maxWidth: .infinity)
                 } else {
                     Button {
                         model.exportAll()
                     } label: {
-                        Label(model.pendingClips.count > 1 ? "Crear \(model.pendingClips.count) fondos" : "Crear fondo",
+                        Label(model.pendingClips.count > 1 ? tr("Crear %d fondos", model.pendingClips.count) : tr("Crear fondo"),
                               systemImage: "sparkles")
                             .frame(maxWidth: .infinity)
                     }
@@ -1028,10 +1030,10 @@ private struct InspectorView: View {
                     .controlSize(.large)
                     .disabled(model.pendingClips.isEmpty)
                     if model.pendingClips.count > 1 {
-                        Button("Crear solo el seleccionado") { model.exportSelected() }
+                        Button(tr("Crear solo el seleccionado")) { model.exportSelected() }
                             .disabled((model.selectedIndex.map { model.clips[$0].length } ?? 0) < 1)
                     }
-                    Button(model.clips.contains { $0.status == .done } ? "Cerrar" : "Cerrar sin guardar", action: onClose)
+                    Button(model.clips.contains { $0.status == .done } ? tr("Cerrar") : tr("Cerrar sin guardar"), action: onClose)
                         .buttonStyle(.borderless)
                         .foregroundStyle(.secondary)
                 }
@@ -1068,7 +1070,7 @@ private struct ClipRow: View {
                 Button { model.removeClip(clip.id) } label: { Image(systemName: "trash") }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
-                    .help("Quitar tramo")
+                    .help(tr("Quitar tramo"))
             }
         }
         .padding(.vertical, 2)
