@@ -809,9 +809,16 @@ private struct SettingsPane: View {
                         }
                         Spacer()
                         Text(tr("desde")).foregroundStyle(Theme.text3)
-                        DatePicker("", selection: startBinding(moment), displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .datePickerStyle(.field)
+                        Picker(moment.title, selection: startBinding(moment)) {
+                            ForEach(Array(stride(from: 0, to: 24 * 60, by: 15)), id: \.self) { minutes in
+                                Text(String(format: "%02d:%02d", minutes / 60, minutes % 60))
+                                    .monospacedDigit()
+                                    .tag(minutes)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .fixedSize()
                     }
                     .padding(.vertical, 6)
                 }
@@ -821,15 +828,10 @@ private struct SettingsPane: View {
         .wallpyCard()
     }
 
-    /// Minutes-after-midnight setting exposed as a time for DatePicker.
-    private func startBinding(_ moment: DayMoment) -> Binding<Date> {
-        Binding(
-            get: { Calendar.current.date(byAdding: .minute, value: settings.start(of: moment),
-                                         to: Calendar.current.startOfDay(for: Date())) ?? Date() },
-            set: { date in
-                let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
-                settings.setStart((parts.hour ?? 0) * 60 + (parts.minute ?? 0), for: moment)
-            })
+    /// Start time of a moment, in minutes after midnight (15-minute steps).
+    private func startBinding(_ moment: DayMoment) -> Binding<Int> {
+        Binding(get: { settings.start(of: moment) / 15 * 15 },
+                set: { settings.setStart($0, for: moment) })
     }
 
     private var languageCard: some View {
