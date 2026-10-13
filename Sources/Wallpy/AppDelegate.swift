@@ -47,11 +47,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// Downloads live in a temp folder that the editor deletes on close;
-    /// clean up any left behind by a crash or force quit.
+    /// clean up any left behind by a crash or force quit. Only folders untouched for
+    /// 12 hours go, so a download still running in another copy of the app survives.
     private func removeLeftoverDownloads() {
         let temp = FileManager.default.temporaryDirectory
-        let items = (try? FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)) ?? []
+        let items = (try? FileManager.default.contentsOfDirectory(
+            at: temp, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        let cutoff = Date().addingTimeInterval(-12 * 60 * 60)
         for item in items where item.lastPathComponent.hasPrefix("Wallpy-") {
+            let modified = (try? item.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let modified, modified > cutoff { continue }
             try? FileManager.default.removeItem(at: item)
         }
     }

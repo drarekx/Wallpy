@@ -202,6 +202,7 @@ private enum Translations {
         "No se encontró el vídeo. Revisa el enlace.": "Video not found. Check the link.",
         "Bajar solo un trozo": "Download only a part",
         "Descargando el trozo…": "Downloading the part…",
+        "Descargando el trozo… %@ descargados": "Downloading the part… %@ so far",
         "Desde": "From",
         "Hasta": "To",
         "Se descargará un trozo de %@. Puede incluir uno o dos segundos de más en los bordes.":
@@ -454,6 +455,7 @@ private enum Translations {
         "No se encontró el vídeo. Revisa el enlace.": "No s'ha trobat el vídeo. Revisa l'enllaç.",
         "Bajar solo un trozo": "Baixa només un tros",
         "Descargando el trozo…": "S'està baixant el tros…",
+        "Descargando el trozo… %@ descargados": "S'està baixant el tros… %@ baixats",
         "Desde": "Des de",
         "Hasta": "Fins a",
         "Se descargará un trozo de %@. Puede incluir uno o dos segundos de más en los bordes.":
