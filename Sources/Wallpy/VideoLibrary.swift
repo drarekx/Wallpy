@@ -127,11 +127,24 @@ final class VideoLibrary: ObservableObject {
     private func importVideo(_ source: URL) async throws -> Video {
         let accessing = source.startAccessingSecurityScopedResource()
         defer { if accessing { source.stopAccessingSecurityScopedResource() } }
+        let name = source.deletingPathExtension().lastPathComponent
         let type = UTType(filenameExtension: source.pathExtension)
         if type?.conforms(to: .image) == true {
+            // Animated GIF / PNG become a looping video (AVFoundation can't play them).
+            if (type?.conforms(to: .gif) == true || type?.conforms(to: .png) == true),
+               Self.isAnimated(source), ExternalTool.ffmpeg.url != nil {
+                let work = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("Wallpy-\(UUID().uuidString)", isDirectory: true)
+                defer { try? FileManager.default.removeItem(at: work) }
+                let movie = try await Self.convertAnimation(source, in: work)
+                return try await importMovie(movie, name: name)
+            }
             return try importImage(source)
         }
-        let name = source.deletingPathExtension().lastPathComponent
+        return try await importMovie(source, name: name)
+    }
+
+    private func importMovie(_ source: URL, name: String) async throws -> Video {
         let asset = AVURLAsset(url: source)
         guard try await asset.load(.isPlayable) else { throw ImportError.notPlayable(source.lastPathComponent) }
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
@@ -152,6 +165,24 @@ final class VideoLibrary: ObservableObject {
                           duration: duration.isFinite ? duration : 0)
         await writeThumbnail(for: AVURLAsset(url: destination), duration: duration, to: video.thumbnailURL)
         return video
+    }
+
+    nonisolated static func isAnimated(_ url: URL) -> Bool {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
+        return CGImageSourceGetCount(source) > 1
+    }
+
+    /// GIF/APNG → H.264 MP4. Transparent pixels become black; dimensions are made even for yuv420p.
+    nonisolated static func convertAnimation(_ source: URL, in work: URL) async throws -> URL {
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        let output = work.appendingPathComponent("animation.mp4")
+        try await ToolProcess.run(.ffmpeg, [
+            "-hide_banner", "-nostats", "-y", "-i", source.path,
+            "-vf", "format=rgba,premultiply=inplace=1,scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos,setsar=1,format=yuv420p",
+            "-an", "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-tune", "animation",
+            "-movflags", "+faststart", output.path,
+        ])
+        return output
     }
 
     private func importImage(_ source: URL) throws -> Video {
