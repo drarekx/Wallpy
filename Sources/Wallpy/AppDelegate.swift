@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         VideoLibrary.shared.load()
         WallpaperManager.shared.start()
         setupStatusItem()
+        Updater.shared.start()
 
         // Development: `Wallpy --edit <file>` opens the loop editor directly.
         let args = CommandLine.arguments
@@ -115,6 +116,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = LoginItem.isEnabled ? .on : .off
 
         menu.addItem(.separator())
+        let updating = Updater.shared.state != .idle
+        let update = menu.addItem(withTitle: updating ? "Actualizando…" : "Buscar actualizaciones…",
+                                  action: updating ? nil : #selector(checkForUpdates), keyEquivalent: "")
+        update.target = self
+        let version = menu.addItem(withTitle: "Wallpy \(Updater.currentVersion)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
         menu.addItem(withTitle: "Salir de Wallpy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
@@ -133,6 +140,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         libraryWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func checkForUpdates() {
+        Task { await Updater.shared.check(userInitiated: true) }
     }
 
     @objc private func togglePause() { Settings.shared.pausedManually.toggle() }

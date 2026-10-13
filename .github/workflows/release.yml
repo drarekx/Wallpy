@@ -26,7 +26,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" build/Wallpy.zip \
+          (cd build && shasum -a 256 Wallpy.zip | awk '{print $1}' > Wallpy.zip.sha256)
+          gh release create "$GITHUB_REF_NAME" build/Wallpy.zip build/Wallpy.zip.sha256 \
             --title "Wallpy $GITHUB_REF_NAME" --generate-notes
 
       - name: Upload artifact

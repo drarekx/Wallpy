@@ -379,6 +379,8 @@ private struct SettingsTab: View {
     @ObservedObject private var manager = WallpaperManager.shared
     @ObservedObject private var library = VideoLibrary.shared
     @State private var launchAtLogin = LoginItem.isEnabled
+    @State private var autoUpdate = Updater.shared.autoCheck
+    @ObservedObject private var updater = Updater.shared
 
     var body: some View {
         Form {
@@ -426,6 +428,18 @@ private struct SettingsTab: View {
                         LoginItem.setEnabled(enabled)
                         launchAtLogin = LoginItem.isEnabled
                     }
+            }
+
+            Section("Actualizaciones") {
+                Toggle("Buscar actualizaciones automáticamente", isOn: $autoUpdate)
+                    .onChange(of: autoUpdate) { _, value in updater.autoCheck = value }
+                HStack {
+                    Text("Versión \(Updater.currentVersion)").foregroundStyle(.secondary)
+                    Spacer()
+                    if updater.state != .idle { ProgressView().controlSize(.small) }
+                    Button("Buscar ahora") { Task { await updater.check(userInitiated: true) } }
+                        .disabled(updater.state != .idle)
+                }
             }
         }
         .formStyle(.grouped)
