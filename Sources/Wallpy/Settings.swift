@@ -1,6 +1,11 @@
 import Foundation
 import ServiceManagement
 
+/// What to do when the Mac runs on battery (or in Low Power Mode, if enabled).
+enum BatteryMode: String, CaseIterable {
+    case keepPlaying, pause, image
+}
+
 /// User preferences, persisted in UserDefaults.
 final class Settings: ObservableObject {
     static let shared = Settings()
@@ -14,7 +19,11 @@ final class Settings: ObservableObject {
     @Published var pausedManually: Bool { didSet { defaults.set(pausedManually, forKey: "pausedManually") } }
     /// Pause when the desktop is covered by other windows.
     @Published var pauseWhenCovered: Bool { didSet { defaults.set(pauseWhenCovered, forKey: "pauseWhenCovered") } }
-    @Published var pauseOnBattery: Bool { didSet { defaults.set(pauseOnBattery, forKey: "pauseOnBattery") } }
+    @Published var batteryMode: BatteryMode { didSet { defaults.set(batteryMode.rawValue, forKey: "batteryMode") } }
+    /// Still image shown on every screen when `batteryMode == .image`.
+    @Published var batteryImageID: UUID? { didSet { defaults.set(batteryImageID?.uuidString, forKey: "batteryImageID") } }
+    /// macOS Low Power Mode counts as being on battery.
+    @Published var lowPowerModeAsBattery: Bool { didSet { defaults.set(lowPowerModeAsBattery, forKey: "lowPowerModeAsBattery") } }
     @Published var pauseOnLowBattery: Bool { didSet { defaults.set(pauseOnLowBattery, forKey: "pauseOnLowBattery") } }
     @Published var lowBatteryLevel: Int { didSet { defaults.set(lowBatteryLevel, forKey: "lowBatteryLevel") } }
     /// Put the wallpaper above the Finder desktop icons.
@@ -25,7 +34,7 @@ final class Settings: ObservableObject {
             "volume": Float(0),
             "lastVolume": Float(0.5),
             "pauseWhenCovered": true,
-            "pauseOnBattery": false,
+            "lowPowerModeAsBattery": true,
             "pauseOnLowBattery": true,
             "lowBatteryLevel": 20,
         ])
@@ -39,7 +48,14 @@ final class Settings: ObservableObject {
         lastVolume = defaults.float(forKey: "lastVolume")
         pausedManually = defaults.bool(forKey: "pausedManually")
         pauseWhenCovered = defaults.bool(forKey: "pauseWhenCovered")
-        pauseOnBattery = defaults.bool(forKey: "pauseOnBattery")
+        if let mode = defaults.string(forKey: "batteryMode").flatMap(BatteryMode.init(rawValue:)) {
+            batteryMode = mode
+        } else {
+            // Before 1.6 this was a single "pause on battery" switch.
+            batteryMode = defaults.bool(forKey: "pauseOnBattery") ? .pause : .keepPlaying
+        }
+        batteryImageID = defaults.string(forKey: "batteryImageID").flatMap(UUID.init(uuidString:))
+        lowPowerModeAsBattery = defaults.bool(forKey: "lowPowerModeAsBattery")
         pauseOnLowBattery = defaults.bool(forKey: "pauseOnLowBattery")
         lowBatteryLevel = defaults.integer(forKey: "lowBatteryLevel")
         hideDesktopIcons = defaults.bool(forKey: "hideDesktopIcons")

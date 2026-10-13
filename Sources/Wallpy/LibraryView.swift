@@ -98,10 +98,10 @@ private struct Sidebar: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    Circle().fill(settings.pausedManually ? Theme.warn : Theme.ok).frame(width: 8, height: 8)
-                    Text(settings.pausedManually ? tr("En pausa") : tr("Reproduciendo")).fontWeight(.medium)
+                    Circle().fill(statusColor).frame(width: 8, height: 8)
+                    Text(statusTitle).fontWeight(.medium)
                 }
-                Text(settings.pauseWhenCovered ? tr("Se pausa cuando las ventanas tapan el escritorio.") : tr("Se reproduce siempre."))
+                Text(statusDetail)
                     .font(.system(size: 11)).foregroundStyle(Theme.text3)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
@@ -126,6 +126,35 @@ private struct Sidebar: View {
         .frame(width: 230)
         .frame(maxHeight: .infinity)
         .background(Theme.sidebar)
+    }
+
+    private var statusColor: Color {
+        switch manager.status {
+        case .playing: return Theme.ok
+        case .idle: return Theme.text3
+        default: return Theme.warn
+        }
+    }
+
+    private var statusTitle: String {
+        switch manager.status {
+        case .playing: return tr("Reproduciendo")
+        case .idle: return tr("Sin fondos de vídeo")
+        case .imageOnBattery: return tr("Imagen fija")
+        default: return tr("En pausa")
+        }
+    }
+
+    private var statusDetail: String {
+        switch manager.status {
+        case .playing, .idle:
+            return settings.pauseWhenCovered ? tr("Se pausa cuando las ventanas tapan el escritorio.") : tr("Se reproduce siempre.")
+        case .pausedManually: return tr("Pausado desde el menú.")
+        case .pausedOnBattery: return tr("Sin cargador: los vídeos vuelven al enchufarlo.")
+        case .imageOnBattery: return tr("Sin cargador: se muestra la imagen elegida.")
+        case .pausedLowBattery: return tr("Batería baja.")
+        case .pausedHot: return tr("El Mac está muy caliente; se reanuda al enfriarse.")
+        }
     }
 
     private func navItem(_ title: String, _ symbol: String, _ target: LibrarySection, count: Int?) -> some View {
@@ -750,7 +779,35 @@ private struct SettingsPane: View {
             SwitchRow(title: tr("Pausar cuando las ventanas tapan el escritorio"),
                       detail: tr("Recomendado: no gasta nada si no lo ves"), isOn: $settings.pauseWhenCovered)
             divider
-            SwitchRow(title: tr("Pausar con batería"), isOn: $settings.pauseOnBattery)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(tr("Sin cargador")).foregroundStyle(Theme.text)
+                SegmentedControl(options: [(tr("Seguir"), BatteryMode.keepPlaying),
+                                           (tr("Pausar"), .pause),
+                                           (tr("Imagen fija"), .image)],
+                                 selection: $settings.batteryMode, expand: true)
+                if settings.batteryMode == .image {
+                    let images = library.videos.filter(\.isImage)
+                    if images.isEmpty {
+                        Text(tr("Añade una imagen a la biblioteca para usarla aquí."))
+                            .font(.system(size: 11)).foregroundStyle(Theme.warn)
+                    } else {
+                        Picker(tr("Imagen"), selection: $settings.batteryImageID) {
+                            Text(tr("Elige una imagen")).tag(UUID?.none)
+                            ForEach(images) { Text($0.name).tag(UUID?.some($0.id)) }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        Text(tr("Mientras no esté enchufado, las pantallas con vídeo muestran esta imagen y el vídeo deja de gastar."))
+                            .font(.system(size: 11)).foregroundStyle(Theme.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            divider
+            SwitchRow(title: tr("Aplicar también en modo de bajo consumo"),
+                      detail: manager.lowPowerMode ? tr("El modo de bajo consumo está activado") : nil,
+                      isOn: $settings.lowPowerModeAsBattery)
             divider
             SwitchRow(title: tr("Pausar con batería baja"), isOn: $settings.pauseOnLowBattery)
             if settings.pauseOnLowBattery {
