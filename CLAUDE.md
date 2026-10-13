@@ -18,6 +18,13 @@ build/Wallpy.app/Contents/MacOS/Wallpy --edit <vídeo>   # abre el editor de buc
 - La copia instalada vive en `/Applications/Wallpy.app`; la de `build/` es solo para desarrollo y tiene versión 1.0.0, así que su actualizador siempre ve versiones nuevas. Cierra una antes de abrir la otra (dos copias = dos fondos encima).
 - No hay tests. Verificar compilando (`swift build` y `swift build --arch x86_64`) y lanzando la app.
 
+## GitHub: ramas y protecciones
+
+- `main` está protegida (ruleset «Protect main»): cambios por pull request con squash, comprobación `build` en verde (`.github/workflows/build.yml`: compila arm64 + x86_64 y verifica que `en` y `ca` tienen las mismas claves y que todo `tr()` está traducido), sin force-push ni borrado. El administrador puede saltárselo y empujar directo.
+- Flujo normal: rama `feat/…` o `fix/…` → `gh pr create` → esperar `build` → `gh pr merge --squash`. La rama se borra sola al fusionar.
+- Las etiquetas `v*` no se pueden borrar ni mover (ruleset «Protect version tags»): una versión publicada no se rehace; si sale mal, se publica la siguiente.
+- Dependabot abre PR semanales para las GitHub Actions y avisa de vulnerabilidades.
+
 ## Publicar una versión
 
 ```sh
