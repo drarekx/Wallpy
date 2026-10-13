@@ -120,6 +120,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let update = menu.addItem(withTitle: updating ? "Actualizando…" : "Buscar actualizaciones…",
                                   action: updating ? nil : #selector(checkForUpdates), keyEquivalent: "")
         update.target = self
+        let coffee = menu.addItem(withTitle: "Invítame a un café…", action: #selector(openBuyMeACoffee), keyEquivalent: "")
+        coffee.target = self
+        coffee.image = NSImage(systemSymbolName: "cup.and.saucer", accessibilityDescription: nil)
         let version = menu.addItem(withTitle: "Wallpy \(Updater.currentVersion)", action: nil, keyEquivalent: "")
         version.isEnabled = false
         menu.addItem(withTitle: "Salir de Wallpy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -146,6 +149,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         libraryWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func openBuyMeACoffee() {
+        NSWorkspace.shared.open(URL(string: "https://buymeacoffee.com/drarek")!)
     }
 
     @objc private func checkForUpdates() {
