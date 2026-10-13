@@ -246,6 +246,18 @@ struct EditorSheet: View {
         step = .working(range == nil ? tr("Descargando…") : tr("Descargando el trozo…"), range == nil ? 0 : nil)
         job = Task {
             do {
+                // For a part, show how much has arrived so far.
+                let sizeWatcher = range == nil ? nil : Task { @MainActor in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1))
+                        let bytes = Self.folderSize(workDir)
+                        if bytes > 0, case .working = step {
+                            step = .working(tr("Descargando el trozo… %@ descargados",
+                                               ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)), nil)
+                        }
+                    }
+                }
+                defer { sizeWatcher?.cancel() }
                 let result = try await YouTubeDownloader.download(trimmed, maxHeight: maxHeight, section: range,
                                                                   into: workDir) { value in
                     guard range == nil else { return }
@@ -258,6 +270,15 @@ struct EditorSheet: View {
                 step = .failed(error.localizedDescription)
             }
         }
+    }
+
+    private static func folderSize(_ url: URL) -> Int64 {
+        let files = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey])
+        var total: Int64 = 0
+        while let file = files?.nextObject() as? URL {
+            total += Int64((try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        }
+        return total
     }
 
     /// Loads the file; transcodes it first if AVFoundation can't preview it.
