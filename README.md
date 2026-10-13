@@ -16,7 +16,7 @@ El instalador descarga la última versión, la copia en `/Applications`, la abre
 curl -fsSL https://raw.githubusercontent.com/drarekx/Wallpy/main/install.sh | bash -s -- --no-deps
 ```
 
-Para actualizar, vuelve a ejecutar el mismo comando.
+Wallpy se actualiza sola: busca versiones nuevas al arrancar y una vez al día (o desde el menú → **Buscar actualizaciones…**), comprueba la descarga con su SHA-256 y se reinicia ya actualizada. Se puede desactivar en Ajustes. Volver a ejecutar el comando de instalación también actualiza.
 
 **Instalación manual:** descarga `Wallpy.zip` de [Releases](https://github.com/drarekx/Wallpy/releases/latest), descomprímelo y mueve `Wallpy.app` a Aplicaciones. La app no está notarizada por Apple, así que la primera vez ábrela con clic derecho → **Abrir** (o Ajustes del Sistema → Privacidad y seguridad → **Abrir igualmente**).
 
