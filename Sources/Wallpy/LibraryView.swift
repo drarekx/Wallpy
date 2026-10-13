@@ -206,8 +206,15 @@ private struct LibraryPane: View {
     @State private var dropTargeted = false
     @State private var errors: [String] = []
     @State private var pendingDelete: Video?
+    /// Moment chosen in the inspector ("" = always). Kept when switching videos and between launches.
+    @AppStorage("inspectorMoment") private var inspectorMoment = ""
 
     private let columns = [GridItem(.adaptive(minimum: 210, maximum: 320), spacing: 20)]
+
+    private var momentSelection: Binding<DayMoment?> {
+        Binding(get: { DayMoment(rawValue: inspectorMoment) },
+                set: { inspectorMoment = $0?.rawValue ?? "" })
+    }
 
     private var visibleVideos: [Video] {
         library.videos.filter { video in
@@ -264,7 +271,8 @@ private struct LibraryPane: View {
 
             if let video = selectedVideo {
                 Rectangle().fill(Theme.line).frame(width: 1)
-                Inspector(video: video, editorSource: $editorSource, onDelete: { requestDelete(video) })
+                Inspector(video: video, moment: momentSelection, editorSource: $editorSource,
+                          onDelete: { requestDelete(video) })
                     .id(video.id)
                     .frame(width: 320)
             }
@@ -486,13 +494,13 @@ private struct VideoCard: View {
 /// Details and actions for the selected wallpaper.
 private struct Inspector: View {
     let video: Video
+    /// nil = "always".
+    @Binding var moment: DayMoment?
     @Binding var editorSource: EditorSource?
     let onDelete: () -> Void
     @ObservedObject private var manager = WallpaperManager.shared
     @ObservedObject private var settings = Settings.shared
     @State private var name = ""
-    /// nil = "always".
-    @State private var moment: DayMoment?
 
     private var fileSize: String {
         let bytes = (try? video.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
