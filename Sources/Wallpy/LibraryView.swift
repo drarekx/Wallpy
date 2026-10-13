@@ -358,8 +358,9 @@ private struct LibraryPane: View {
         Button(tr("Eliminar"), role: .destructive) { requestDelete(video) }
     }
 
+    /// Screens showing this wallpaper right now (after the schedule and battery rules).
     private func screensUsing(_ video: Video) -> [String] {
-        manager.screens.filter { settings.assignments[$0.id] == video.id }.map(\.name)
+        manager.screens.filter { manager.displayed[$0.id] == video.id }.map(\.name)
     }
 
     private func requestDelete(_ video: Video) {
