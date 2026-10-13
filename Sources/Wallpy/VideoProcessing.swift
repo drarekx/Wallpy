@@ -8,15 +8,45 @@ struct DownloadResult {
     let title: String
 }
 
+/// Title, length and thumbnail of a video, fetched without downloading it.
+struct RemoteVideoInfo {
+    let title: String
+    let duration: Double?
+    let thumbnail: URL?
+}
+
 enum YouTubeDownloader {
+    static func info(_ link: String) async throws -> RemoteVideoInfo {
+        let collector = OutputCollector()
+        try await ToolProcess.run(.ytDlp, [
+            link, "--no-playlist", "--skip-download", "--no-warnings",
+            "--print", "TITLE %(title)s",
+            "--print", "DURATION %(duration)s",
+            "--print", "THUMB %(thumbnail)s",
+        ]) { line in
+            if line.hasPrefix("TITLE ") { collector.set(title: String(line.dropFirst(6))) }
+            if line.hasPrefix("DURATION ") { collector.set(duration: Double(line.dropFirst(9))) }
+            if line.hasPrefix("THUMB ") { collector.set(file: String(line.dropFirst(6))) }
+        }
+        return RemoteVideoInfo(title: collector.title ?? tr("Vídeo de YouTube"),
+                               duration: collector.duration,
+                               thumbnail: collector.file.flatMap(URL.init(string:)))
+    }
+
     /// Downloads the best stream up to `maxHeight` into `directory`.
-    static func download(_ link: String, maxHeight: Int, into directory: URL,
+    /// `section` (seconds) downloads only that part; the cut lands on the nearest keyframes.
+    static func download(_ link: String, maxHeight: Int, section: ClosedRange<Double>? = nil, into directory: URL,
                          progress: @escaping @Sendable (Double) -> Void) async throws -> DownloadResult {
         guard let ffmpeg = ExternalTool.ffmpeg.url else { throw ToolError.notInstalled(.ffmpeg) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
+        var sectionArgs: [String] = []
+        if let section {
+            sectionArgs = ["--download-sections", String(format: "*%.2f-%.2f", section.lowerBound, section.upperBound)]
+        }
+
         let collector = OutputCollector()
-        try await ToolProcess.run(.ytDlp, [
+        try await ToolProcess.run(.ytDlp, sectionArgs + [
             link,
             "--no-playlist",
             "-f", "bv*[height<=\(maxHeight)]+ba/b[height<=\(maxHeight)]/bv*+ba/b",
@@ -43,10 +73,37 @@ enum YouTubeDownloader {
     }
 }
 
+/// "90", "1:30", "1:02:30", "1:30.5" ↔ seconds.
+enum Timecode {
+    static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard !trimmed.isEmpty else { return nil }
+        let parts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
+        guard (1...3).contains(parts.count) else { return nil }
+        var seconds = 0.0
+        for (index, part) in parts.enumerated() {
+            guard let value = Double(part), value >= 0 else { return nil }
+            // Minutes and seconds after the first field must be below 60.
+            if index > 0 && value >= 60 { return nil }
+            seconds = seconds * 60 + value
+        }
+        return seconds
+    }
+
+    static func format(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        return total >= 3600
+            ? String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
+            : String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
 private final class OutputCollector: @unchecked Sendable {
     private let lock = NSLock()
     private(set) var title: String?
     private(set) var file: String?
+    private(set) var duration: Double?
+    func set(duration: Double?) { lock.lock(); self.duration = duration; lock.unlock() }
     func set(title: String) { lock.lock(); self.title = title; lock.unlock() }
     func set(file: String) { lock.lock(); self.file = file; lock.unlock() }
 }

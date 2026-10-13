@@ -26,7 +26,7 @@ Requisitos: macOS 14 (Sonoma) o posterior. Apple Silicon o Intel.
 
 - **Fondos de vídeo** en todas tus pantallas, un vídeo distinto por pantalla si quieres, y en todos los Spaces.
 - **Biblioteca**: arrastra vídeos (MP4, MOV, M4V) o imágenes (JPG, PNG, HEIC, WebP, TIFF), o súbelos con el botón. Los GIF y PNG animados se convierten solos en vídeo en bucle (necesita `ffmpeg`).
-- **Descarga de YouTube** con elección de calidad (1080p, 1440p, 4K).
+- **Descarga de YouTube** con elección de calidad (1080p, 1440p, 4K). Muestra título y duración antes de bajar, y permite **bajar solo un trozo** (desde/hasta) de los vídeos largos.
 - **Editor de bucles** estilo editor de vídeo: monitor grande, línea de tiempo con miniaturas y zoom, marcas de entrada/salida, varios tramos por vídeo y exportación en cola.
   - Fundido del bucle para que no se note el salto al repetir.
   - Optimización: HEVC por hardware, resolución, calidad, 30 fps, quitar sonido.
