@@ -22,6 +22,10 @@ final class WallpaperManager: ObservableObject {
     @Published private(set) var power = PowerState.current()
     @Published private(set) var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
     @Published private(set) var status: PlaybackStatus = .idle
+    @Published private(set) var currentMoment = Settings.shared.moment(at: Date())
+    /// Screen UUID → what it shows right now (after moments and battery rules).
+    @Published private(set) var displayed: [String: UUID] = [:]
+    private var momentTimer: Timer?
     private var tooHot = WallpaperManager.isTooHot
 
     private var wallpapers: [String: ScreenWallpaper] = [:]
@@ -65,8 +69,21 @@ final class WallpaperManager: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Re-evaluate the moment whenever the clock may have jumped.
+        Publishers.MergeMany(
+            workspace.publisher(for: NSWorkspace.didWakeNotification).map { _ in () }.eraseToAnyPublisher(),
+            NotificationCenter.default.publisher(for: .NSSystemClockDidChange).map { _ in () }.eraseToAnyPublisher(),
+            NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange).map { _ in () }.eraseToAnyPublisher(),
+            settings.$momentStarts.map { _ in () }.eraseToAnyPublisher()
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] in self?.updateMoment() }
+        .store(in: &cancellables)
+
         Publishers.MergeMany(
             settings.$assignments.map { _ in () }.eraseToAnyPublisher(),
+            settings.$momentAssignments.map { _ in () }.eraseToAnyPublisher(),
+            settings.$momentsEnabled.map { _ in () }.eraseToAnyPublisher(),
             library.$videos.map { _ in () }.eraseToAnyPublisher(),
             settings.$batteryMode.map { _ in () }.eraseToAnyPublisher(),
             settings.$batteryImageID.map { _ in () }.eraseToAnyPublisher(),
@@ -100,6 +117,51 @@ final class WallpaperManager: ObservableObject {
         }
 
         syncScreens()
+        scheduleMomentTimer()
+    }
+
+    // MARK: - Moments of the day
+
+    private func updateMoment() {
+        let moment = Settings.shared.moment(at: Date())
+        if moment != currentMoment {
+            currentMoment = moment
+            applyAssignments()
+        }
+        scheduleMomentTimer()
+    }
+
+    /// One timer for the next boundary, so nothing runs between changes.
+    private func scheduleMomentTimer() {
+        momentTimer?.invalidate()
+        let settings = Settings.shared
+        let calendar = Calendar.current
+        let now = Date()
+        let starts = DayMoment.allCases.map { settings.start(of: $0) }
+        let candidates = (0...1).flatMap { dayOffset in
+            starts.compactMap { minutes -> Date? in
+                guard let day = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: now)) else { return nil }
+                return calendar.date(byAdding: .minute, value: minutes, to: day)
+            }
+        }
+        guard let next = candidates.filter({ $0 > now.addingTimeInterval(1) }).min() else { return }
+        let timer = Timer(fire: next.addingTimeInterval(0.5), interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateMoment() }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        momentTimer = timer
+    }
+
+    /// Video for a screen right now: the current moment's, else the "always" one.
+    private func scheduledVideo(for screenID: String) -> Video? {
+        let settings = Settings.shared
+        let library = VideoLibrary.shared
+        if settings.momentsEnabled, let id = settings.assignment(screen: screenID, moment: currentMoment),
+           let video = library.video(id: id) {
+            return video
+        }
+        return library.video(id: settings.assignments[screenID])
     }
 
     private func syncScreens() {
@@ -143,13 +205,14 @@ final class WallpaperManager: ObservableObject {
     }
 
     private func applyAssignments() {
-        let library = VideoLibrary.shared
         let replacement = batteryImage
         for (id, wallpaper) in wallpapers {
             // Screens without a wallpaper stay empty; the others show the battery image instead of a video.
-            let assigned = library.video(id: Settings.shared.assignments[id])
+            let assigned = scheduledVideo(for: id)
             wallpaper.setVideo(assigned == nil ? nil : (replacement ?? assigned))
         }
+        let shown = wallpapers.compactMapValues(\.videoID)
+        if shown != displayed { displayed = shown }
         updatePlayback()
     }
 
@@ -189,13 +252,18 @@ final class WallpaperManager: ObservableObject {
 
     // MARK: - Actions used by the UI
 
-    func setVideo(_ video: Video?, onScreen id: String) {
-        Settings.shared.assignments[id] = video?.id
+    /// `moment` nil = always.
+    func setVideo(_ video: Video?, onScreen id: String, moment: DayMoment? = nil) {
+        Settings.shared.setAssignment(video?.id, screen: id, moment: moment)
     }
 
-    func setVideoOnAllScreens(_ video: Video) {
-        var assignments = Settings.shared.assignments
-        for screen in screens { assignments[screen.id] = video.id }
-        Settings.shared.assignments = assignments
+    func setVideoOnAllScreens(_ video: Video, moment: DayMoment? = nil) {
+        guard let moment else {
+            var assignments = Settings.shared.assignments
+            for screen in screens { assignments[screen.id] = video.id }
+            Settings.shared.assignments = assignments
+            return
+        }
+        for screen in screens { Settings.shared.setAssignment(video.id, screen: screen.id, moment: moment) }
     }
 }

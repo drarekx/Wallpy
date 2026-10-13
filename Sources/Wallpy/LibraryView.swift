@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum LibrarySection: Hashable {
-    case library, originals, settings
+    case library, schedule, originals, settings
 }
 
 /// Main window: sidebar + the selected section, in the editor's dark style.
@@ -18,7 +18,8 @@ struct LibraryView: View {
             Rectangle().fill(Theme.line).frame(width: 1)
             Group {
                 switch section {
-                case .library: LibraryPane(editorSource: $editorSource)
+                case .library: LibraryPane(editorSource: $editorSource, openSchedule: { section = .schedule })
+                case .schedule: SchedulePane()
                 case .originals: OriginalsPane(editorSource: $editorSource)
                 case .settings: SettingsPane()
                 }
@@ -62,6 +63,7 @@ private struct Sidebar: View {
 
             VStack(spacing: 2) {
                 navItem(tr("Biblioteca"), "square.grid.2x2", .library, count: library.videos.count)
+                navItem(tr("Programación"), "calendar.badge.clock", .schedule, count: nil)
                 navItem(tr("Originales"), "film", .originals, count: originals.originals.count)
                 navItem(tr("Ajustes"), "slider.horizontal.3", .settings, count: nil)
             }
@@ -69,8 +71,17 @@ private struct Sidebar: View {
             if !manager.screens.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     SectionLabel(tr("Pantallas")).padding(.horizontal, 10)
+                    if settings.momentsEnabled {
+                        HStack(spacing: 6) {
+                            Image(systemName: manager.currentMoment.symbol).foregroundStyle(Theme.accentText)
+                            Text(manager.currentMoment.title).fontWeight(.medium)
+                            Text(settings.rangeLabel(for: manager.currentMoment)).monospacedText(size: 11).foregroundStyle(Theme.text3)
+                        }
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 10)
+                    }
                     ForEach(manager.screens) { screen in
-                        let video = library.video(id: settings.assignments[screen.id])
+                        let video = library.video(id: manager.displayed[screen.id])
                         HStack(spacing: 10) {
                             Group {
                                 if let video {
@@ -188,6 +199,7 @@ private enum MediaFilter: Hashable { case all, videos, images }
 
 private struct LibraryPane: View {
     @Binding var editorSource: EditorSource?
+    let openSchedule: () -> Void
     @ObservedObject private var library = VideoLibrary.shared
     @ObservedObject private var manager = WallpaperManager.shared
     @ObservedObject private var settings = Settings.shared
@@ -199,6 +211,7 @@ private struct LibraryPane: View {
     @State private var pendingDelete: Video?
 
     private let columns = [GridItem(.adaptive(minimum: 210, maximum: 320), spacing: 20)]
+
 
     private var visibleVideos: [Video] {
         library.videos.filter { video in
@@ -225,7 +238,8 @@ private struct LibraryPane: View {
                             ForEach(visibleVideos) { video in
                                 VideoCard(video: video,
                                           selected: selection == video.id,
-                                          inUse: !screensUsing(video).isEmpty)
+                                          inUse: !screensUsing(video).isEmpty,
+                                          moments: settings.moments(using: video.id))
                                     .onTapGesture(count: 2) { manager.setVideoOnAllScreens(video) }
                                     .simultaneousGesture(TapGesture().onEnded { selection = video.id })
                                     .contextMenu { menu(for: video) }
@@ -254,7 +268,8 @@ private struct LibraryPane: View {
 
             if let video = selectedVideo {
                 Rectangle().fill(Theme.line).frame(width: 1)
-                Inspector(video: video, editorSource: $editorSource, onDelete: { requestDelete(video) })
+                Inspector(video: video, editorSource: $editorSource, openSchedule: openSchedule,
+                          onDelete: { requestDelete(video) })
                     .id(video.id)
                     .frame(width: 320)
             }
@@ -408,6 +423,7 @@ private struct VideoCard: View {
     let video: Video
     let selected: Bool
     let inUse: Bool
+    var moments: [DayMoment] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -446,6 +462,12 @@ private struct VideoCard: View {
             HStack {
                 Text(video.resolutionLabel)
                 Spacer()
+                ForEach(moments) { moment in
+                    Image(systemName: moment.symbol)
+                        .foregroundStyle(Theme.accentText)
+                        .help(moment.title)
+                        .accessibilityLabel(moment.title)
+                }
                 Text(video.durationLabel)
             }
             .font(.system(size: 11))
@@ -470,7 +492,22 @@ private struct VideoCard: View {
 private struct Inspector: View {
     let video: Video
     @Binding var editorSource: EditorSource?
+    let openSchedule: () -> Void
     let onDelete: () -> Void
+
+    private struct Slot: Hashable {
+        let moment: DayMoment
+        let screen: String
+    }
+
+    /// Where this wallpaper is scheduled, moment by moment.
+    private var scheduledSlots: [Slot] {
+        DayMoment.allCases.flatMap { moment in
+            manager.screens
+                .filter { settings.assignment(screen: $0.id, moment: moment) == video.id }
+                .map { Slot(moment: moment, screen: $0.name) }
+        }
+    }
     @ObservedObject private var manager = WallpaperManager.shared
     @ObservedObject private var settings = Settings.shared
     @State private var name = ""
@@ -531,6 +568,28 @@ private struct Inspector: View {
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(active ? .isSelected : [])
                     }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel(tr("Momentos del día"))
+                    let slots = scheduledSlots
+                    if slots.isEmpty {
+                        Text(tr("No está programado en ningún momento."))
+                            .font(.system(size: 12)).foregroundStyle(Theme.text3)
+                    } else {
+                        ForEach(slots, id: \.self) { slot in
+                            HStack(spacing: 8) {
+                                Image(systemName: slot.moment.symbol).foregroundStyle(Theme.accentText).frame(width: 16)
+                                Text(slot.moment.title).fontWeight(.medium)
+                                Text(slot.screen).foregroundStyle(Theme.text2).lineLimit(1)
+                            }
+                            .font(.system(size: 12))
+                        }
+                    }
+                    Button(action: openSchedule) {
+                        Label(tr("Abrir programación"), systemImage: "calendar.badge.clock")
+                    }
+                    .buttonStyle(WallpyButtonStyle(kind: .secondary, height: 30, fullWidth: true))
                 }
 
                 VStack(spacing: 8) {

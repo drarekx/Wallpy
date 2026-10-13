@@ -230,8 +230,7 @@ final class VideoLibrary: ObservableObject {
     }
 
     func delete(_ video: Video) {
-        let settings = Settings.shared
-        settings.assignments = settings.assignments.filter { $0.value != video.id }
+        Settings.shared.removeEverywhere(video.id)
         try? FileManager.default.removeItem(at: video.url)
         try? FileManager.default.removeItem(at: video.thumbnailURL)
         videos.removeAll { $0.id == video.id }
@@ -239,7 +238,7 @@ final class VideoLibrary: ObservableObject {
     }
 
     func isInUse(_ video: Video) -> Bool {
-        Settings.shared.assignments.values.contains(video.id)
+        Settings.shared.assignments.values.contains(video.id) || !Settings.shared.moments(using: video.id).isEmpty
     }
 }
 

@@ -174,6 +174,13 @@ final class ScreenWallpaper: NSObject {
 
     func setVideo(_ video: Video?) {
         guard video?.id != videoID else { return }
+        // Swapping one wallpaper for another (e.g. a new moment of the day) fades instead of cutting.
+        if videoID != nil && video != nil {
+            let fade = CATransition()
+            fade.type = .fade
+            fade.duration = 0.8
+            playerView.layer?.add(fade, forKey: "swap")
+        }
         if let old = videoID, !isImage { PlayerPool.shared.release(old) }
         playerView.playerLayer.player = nil
         videoID = video?.id

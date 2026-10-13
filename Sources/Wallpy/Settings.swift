@@ -6,6 +6,40 @@ enum BatteryMode: String, CaseIterable {
     case keepPlaying, pause, image
 }
 
+/// Parts of the day a wallpaper can be scheduled for.
+enum DayMoment: String, CaseIterable, Identifiable {
+    case dawn, morning, afternoon, night
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dawn: return tr("Madrugada")
+        case .morning: return tr("Mañana")
+        case .afternoon: return tr("Tarde")
+        case .night: return tr("Noche")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .dawn: return "moon.stars"
+        case .morning: return "sunrise"
+        case .afternoon: return "sun.max"
+        case .night: return "moon"
+        }
+    }
+
+    /// Default start, in minutes after midnight.
+    var defaultStart: Int {
+        switch self {
+        case .dawn: return 0
+        case .morning: return 7 * 60
+        case .afternoon: return 14 * 60
+        case .night: return 21 * 60
+        }
+    }
+}
+
 /// User preferences, persisted in UserDefaults.
 final class Settings: ObservableObject {
     static let shared = Settings()
@@ -26,6 +60,12 @@ final class Settings: ObservableObject {
     @Published var lowPowerModeAsBattery: Bool { didSet { defaults.set(lowPowerModeAsBattery, forKey: "lowPowerModeAsBattery") } }
     @Published var pauseOnLowBattery: Bool { didSet { defaults.set(pauseOnLowBattery, forKey: "pauseOnLowBattery") } }
     @Published var lowBatteryLevel: Int { didSet { defaults.set(lowBatteryLevel, forKey: "lowBatteryLevel") } }
+    /// Change wallpapers with the time of day.
+    @Published var momentsEnabled: Bool { didSet { defaults.set(momentsEnabled, forKey: "momentsEnabled") } }
+    /// Moment raw value → (screen UUID → video ID). Screens missing here use `assignments`.
+    @Published var momentAssignments: [String: [String: UUID]] { didSet { save(momentAssignments, "momentAssignments") } }
+    /// Moment raw value → start in minutes after midnight.
+    @Published var momentStarts: [String: Int] { didSet { save(momentStarts, "momentStarts") } }
     /// Put the wallpaper above the Finder desktop icons.
     @Published var hideDesktopIcons: Bool { didSet { defaults.set(hideDesktopIcons, forKey: "hideDesktopIcons") } }
 
@@ -44,6 +84,11 @@ final class Settings: ObservableObject {
         } else {
             assignments = [:]
         }
+        momentsEnabled = defaults.bool(forKey: "momentsEnabled")
+        momentAssignments = defaults.data(forKey: "momentAssignments")
+            .flatMap { try? JSONDecoder().decode([String: [String: UUID]].self, from: $0) } ?? [:]
+        momentStarts = defaults.data(forKey: "momentStarts")
+            .flatMap { try? JSONDecoder().decode([String: Int].self, from: $0) } ?? [:]
         volume = defaults.float(forKey: "volume")
         lastVolume = defaults.float(forKey: "lastVolume")
         pausedManually = defaults.bool(forKey: "pausedManually")
@@ -59,6 +104,60 @@ final class Settings: ObservableObject {
         pauseOnLowBattery = defaults.bool(forKey: "pauseOnLowBattery")
         lowBatteryLevel = defaults.integer(forKey: "lowBatteryLevel")
         hideDesktopIcons = defaults.bool(forKey: "hideDesktopIcons")
+    }
+
+    // MARK: Moments
+
+    func start(of moment: DayMoment) -> Int { momentStarts[moment.rawValue] ?? moment.defaultStart }
+
+    func setStart(_ minutes: Int, for moment: DayMoment) { momentStarts[moment.rawValue] = minutes }
+
+    /// The moment `date` falls in: the one with the latest start at or before it (wrapping past midnight).
+    func moment(at date: Date) -> DayMoment {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+        let minutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        let ordered = DayMoment.allCases.sorted { start(of: $0) < start(of: $1) }
+        return ordered.last { start(of: $0) <= minutes } ?? ordered.last!
+    }
+
+    /// "07:00–14:00"
+    func rangeLabel(for moment: DayMoment) -> String {
+        let ordered = DayMoment.allCases.sorted { start(of: $0) < start(of: $1) }
+        let index = ordered.firstIndex(of: moment)!
+        let next = ordered[(index + 1) % ordered.count]
+        let fmt = { (m: Int) in String(format: "%02d:%02d", m / 60, m % 60) }
+        return "\(fmt(start(of: moment)))–\(fmt(start(of: next)))"
+    }
+
+    /// `nil` moment = the "always" assignment.
+    func assignment(screen: String, moment: DayMoment?) -> UUID? {
+        guard let moment else { return assignments[screen] }
+        return momentAssignments[moment.rawValue]?[screen]
+    }
+
+    func setAssignment(_ id: UUID?, screen: String, moment: DayMoment?) {
+        guard let moment else {
+            assignments[screen] = id
+            return
+        }
+        var table = momentAssignments[moment.rawValue] ?? [:]
+        table[screen] = id
+        momentAssignments[moment.rawValue] = table.isEmpty ? nil : table
+        // Scheduling something for a moment turns the feature on.
+        if id != nil && !momentsEnabled { momentsEnabled = true }
+    }
+
+    /// Moments in which `id` is shown on some screen.
+    func moments(using id: UUID) -> [DayMoment] {
+        DayMoment.allCases.filter { momentAssignments[$0.rawValue]?.values.contains(id) == true }
+    }
+
+    func removeEverywhere(_ id: UUID) {
+        assignments = assignments.filter { $0.value != id }
+        momentAssignments = momentAssignments
+            .mapValues { $0.filter { $0.value != id } }
+            .filter { !$0.value.isEmpty }
+        if batteryImageID == id { batteryImageID = nil }
     }
 
     private func save<T: Encodable>(_ value: T, _ key: String) {
