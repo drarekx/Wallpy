@@ -233,36 +233,3 @@ extension View {
     }
 }
 
-/// Always / dawn / morning / afternoon / night, as compact icon segments.
-struct MomentPicker: View {
-    @Binding var selection: DayMoment?
-
-    var body: some View {
-        HStack(spacing: 0) {
-            segment(nil, symbol: "infinity", label: tr("Siempre"))
-            ForEach(DayMoment.allCases) { moment in
-                segment(moment, symbol: moment.symbol, label: moment.title)
-            }
-        }
-        .padding(2)
-        .background(Theme.field, in: RoundedRectangle(cornerRadius: Theme.radius))
-        .overlay { RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.line) }
-    }
-
-    private func segment(_ value: DayMoment?, symbol: String, label: String) -> some View {
-        let selected = value == selection
-        return Button { selection = value } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Theme.text : Theme.text2)
-                .frame(maxWidth: .infinity)
-                .frame(height: 28)
-                .background(selected ? Color(hex: 0x34343A) : .clear, in: RoundedRectangle(cornerRadius: 6))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(label)
-        .accessibilityLabel(label)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}

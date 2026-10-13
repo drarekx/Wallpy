@@ -30,7 +30,7 @@ Requisitos: macOS 14 (Sonoma) o posterior. Apple Silicon o Intel.
 - **Editor de bucles** estilo editor de vídeo: monitor grande, línea de tiempo con miniaturas y zoom, marcas de entrada/salida, varios tramos por vídeo y exportación en cola.
   - Fundido del bucle para que no se note el salto al repetir.
   - Optimización: HEVC por hardware, resolución, calidad, 30 fps, quitar sonido.
-- **Momentos del día**: un fondo distinto para la madrugada, la mañana, la tarde y la noche, por pantalla, con cambio automático y fundido. Las horas se ajustan en Ajustes.
+- **Programación por momentos del día**: una cuadrícula pantallas × momentos (Siempre, madrugada, mañana, tarde, noche) donde eliges qué fondo se ve en cada casilla; cambio automático con fundido y horas ajustables.
 - **Originales**: guarda vídeos largos para sacar más fondos otro día sin volver a descargarlos.
 - **Ahorro de energía**: pausa cuando las ventanas tapan el escritorio, con batería o con batería baja, y cuando se apagan las pantallas.
 - Ocultar iconos del escritorio, volumen (silenciado por defecto) y abrir al iniciar sesión.

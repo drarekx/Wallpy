@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum LibrarySection: Hashable {
-    case library, originals, settings
+    case library, schedule, originals, settings
 }
 
 /// Main window: sidebar + the selected section, in the editor's dark style.
@@ -18,7 +18,8 @@ struct LibraryView: View {
             Rectangle().fill(Theme.line).frame(width: 1)
             Group {
                 switch section {
-                case .library: LibraryPane(editorSource: $editorSource)
+                case .library: LibraryPane(editorSource: $editorSource, openSchedule: { section = .schedule })
+                case .schedule: SchedulePane()
                 case .originals: OriginalsPane(editorSource: $editorSource)
                 case .settings: SettingsPane()
                 }
@@ -62,6 +63,7 @@ private struct Sidebar: View {
 
             VStack(spacing: 2) {
                 navItem(tr("Biblioteca"), "square.grid.2x2", .library, count: library.videos.count)
+                navItem(tr("Programación"), "calendar.badge.clock", .schedule, count: nil)
                 navItem(tr("Originales"), "film", .originals, count: originals.originals.count)
                 navItem(tr("Ajustes"), "slider.horizontal.3", .settings, count: nil)
             }
@@ -197,6 +199,7 @@ private enum MediaFilter: Hashable { case all, videos, images }
 
 private struct LibraryPane: View {
     @Binding var editorSource: EditorSource?
+    let openSchedule: () -> Void
     @ObservedObject private var library = VideoLibrary.shared
     @ObservedObject private var manager = WallpaperManager.shared
     @ObservedObject private var settings = Settings.shared
@@ -206,15 +209,9 @@ private struct LibraryPane: View {
     @State private var dropTargeted = false
     @State private var errors: [String] = []
     @State private var pendingDelete: Video?
-    /// Moment chosen in the inspector ("" = always). Kept when switching videos and between launches.
-    @AppStorage("inspectorMoment") private var inspectorMoment = ""
 
     private let columns = [GridItem(.adaptive(minimum: 210, maximum: 320), spacing: 20)]
 
-    private var momentSelection: Binding<DayMoment?> {
-        Binding(get: { DayMoment(rawValue: inspectorMoment) },
-                set: { inspectorMoment = $0?.rawValue ?? "" })
-    }
 
     private var visibleVideos: [Video] {
         library.videos.filter { video in
@@ -271,7 +268,7 @@ private struct LibraryPane: View {
 
             if let video = selectedVideo {
                 Rectangle().fill(Theme.line).frame(width: 1)
-                Inspector(video: video, moment: momentSelection, editorSource: $editorSource,
+                Inspector(video: video, editorSource: $editorSource, openSchedule: openSchedule,
                           onDelete: { requestDelete(video) })
                     .id(video.id)
                     .frame(width: 320)
@@ -494,10 +491,23 @@ private struct VideoCard: View {
 /// Details and actions for the selected wallpaper.
 private struct Inspector: View {
     let video: Video
-    /// nil = "always".
-    @Binding var moment: DayMoment?
     @Binding var editorSource: EditorSource?
+    let openSchedule: () -> Void
     let onDelete: () -> Void
+
+    private struct Slot: Hashable {
+        let moment: DayMoment
+        let screen: String
+    }
+
+    /// Where this wallpaper is scheduled, moment by moment.
+    private var scheduledSlots: [Slot] {
+        DayMoment.allCases.flatMap { moment in
+            manager.screens
+                .filter { settings.assignment(screen: $0.id, moment: moment) == video.id }
+                .map { Slot(moment: moment, screen: $0.name) }
+        }
+    }
     @ObservedObject private var manager = WallpaperManager.shared
     @ObservedObject private var settings = Settings.shared
     @State private var name = ""
@@ -533,22 +543,15 @@ private struct Inspector: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     SectionLabel(tr("En pantalla"))
-                    MomentPicker(selection: $moment)
-                    Text(moment.map { "\($0.title) · \(settings.rangeLabel(for: $0))" } ?? tr("Siempre, salvo los momentos que tengan otro fondo"))
-                        .font(.system(size: 11)).foregroundStyle(Theme.text3)
                     ForEach(manager.screens) { screen in
-                        let active = settings.assignment(screen: screen.id, moment: moment) == video.id
-                        let fallsBack = moment != nil && settings.assignment(screen: screen.id, moment: moment) == nil
+                        let active = settings.assignments[screen.id] == video.id
                         Button {
-                            manager.setVideo(active ? nil : video, onScreen: screen.id, moment: moment)
+                            manager.setVideo(active ? nil : video, onScreen: screen.id)
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "display")
                                     .foregroundStyle(active ? Theme.accentText : Theme.text2)
                                 Text(screen.name).frame(maxWidth: .infinity, alignment: .leading)
-                                if fallsBack {
-                                    Text(tr("usa Siempre")).font(.system(size: 11)).foregroundStyle(Theme.text3)
-                                }
                                 if active {
                                     Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.accentText)
                                 }
@@ -567,11 +570,31 @@ private struct Inspector: View {
                     }
                 }
 
-                VStack(spacing: 8) {
-                    Button(moment.map { tr("Poner en todas · %@", $0.title) } ?? tr("Poner en todas las pantallas")) {
-                        manager.setVideoOnAllScreens(video, moment: moment)
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel(tr("Momentos del día"))
+                    let slots = scheduledSlots
+                    if slots.isEmpty {
+                        Text(tr("No está programado en ningún momento."))
+                            .font(.system(size: 12)).foregroundStyle(Theme.text3)
+                    } else {
+                        ForEach(slots, id: \.self) { slot in
+                            HStack(spacing: 8) {
+                                Image(systemName: slot.moment.symbol).foregroundStyle(Theme.accentText).frame(width: 16)
+                                Text(slot.moment.title).fontWeight(.medium)
+                                Text(slot.screen).foregroundStyle(Theme.text2).lineLimit(1)
+                            }
+                            .font(.system(size: 12))
+                        }
                     }
-                    .buttonStyle(WallpyButtonStyle(kind: .primary, height: 38, fullWidth: true))
+                    Button(action: openSchedule) {
+                        Label(tr("Abrir programación"), systemImage: "calendar.badge.clock")
+                    }
+                    .buttonStyle(WallpyButtonStyle(kind: .secondary, height: 30, fullWidth: true))
+                }
+
+                VStack(spacing: 8) {
+                    Button(tr("Poner en todas las pantallas")) { manager.setVideoOnAllScreens(video) }
+                        .buttonStyle(WallpyButtonStyle(kind: .primary, height: 38, fullWidth: true))
                     if !video.isImage {
                         Button { editorSource = .library(video) } label: {
                             Label(tr("Recortar y optimizar…"), systemImage: "scissors")
@@ -759,7 +782,6 @@ private struct SettingsPane: View {
                 VStack(spacing: 20) {
                     screensCard
                     LazyVGrid(columns: columns, spacing: 20) {
-                        momentsCard
                         languageCard
                         energyCard
                         soundCard
@@ -798,48 +820,6 @@ private struct SettingsPane: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .wallpyCard()
-    }
-
-    private var momentsCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(tr("Momentos del día")).font(.system(size: 14, weight: .semibold)).padding(.bottom, 8)
-            SwitchRow(title: tr("Cambiar el fondo según el momento del día"),
-                      detail: tr("Elige el momento en el panel del fondo, encima de «En pantalla»."),
-                      isOn: $settings.momentsEnabled)
-            if settings.momentsEnabled {
-                ForEach(DayMoment.allCases) { moment in
-                    divider
-                    HStack(spacing: 10) {
-                        Image(systemName: moment.symbol).foregroundStyle(Theme.accentText).frame(width: 18)
-                        Text(moment.title)
-                        if manager.currentMoment == moment {
-                            Text(tr("ahora")).font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.ok)
-                        }
-                        Spacer()
-                        Text(tr("desde")).foregroundStyle(Theme.text3)
-                        Picker(moment.title, selection: startBinding(moment)) {
-                            ForEach(Array(stride(from: 0, to: 24 * 60, by: 15)), id: \.self) { minutes in
-                                Text(String(format: "%02d:%02d", minutes / 60, minutes % 60))
-                                    .monospacedDigit()
-                                    .tag(minutes)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .fixedSize()
-                    }
-                    .padding(.vertical, 6)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .wallpyCard()
-    }
-
-    /// Start time of a moment, in minutes after midnight (15-minute steps).
-    private func startBinding(_ moment: DayMoment) -> Binding<Int> {
-        Binding(get: { settings.start(of: moment) / 15 * 15 },
-                set: { settings.setStart($0, for: moment) })
     }
 
     private var languageCard: some View {
