@@ -1,7 +1,13 @@
 import AppKit
 import AVFoundation
+import ImageIO
 import UniformTypeIdentifiers
 
+enum MediaKind: String, Codable {
+    case video, image
+}
+
+/// A wallpaper in the library: a looping video or a still image.
 struct Video: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String
@@ -10,24 +16,55 @@ struct Video: Codable, Identifiable, Hashable {
     let width: Int
     let height: Int
     let duration: Double
+    var kind: MediaKind = .video
+
+    var isImage: Bool { kind == .image }
 
     var url: URL { VideoLibrary.directory.appendingPathComponent(fileName) }
     var thumbnailURL: URL { VideoLibrary.directory.appendingPathComponent("\(id.uuidString).jpg") }
     var resolutionLabel: String { "\(width)×\(height)" }
     var durationLabel: String {
+        if isImage { return "Imagen" }
         let s = Int(duration.rounded())
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    init(id: UUID, name: String, fileName: String, addedAt: Date, width: Int, height: Int,
+         duration: Double, kind: MediaKind = .video) {
+        self.id = id
+        self.name = name
+        self.fileName = fileName
+        self.addedAt = addedAt
+        self.width = width
+        self.height = height
+        self.duration = duration
+        self.kind = kind
+    }
+
+    // Libraries saved before images existed have no "kind".
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        fileName = try c.decode(String.self, forKey: .fileName)
+        addedAt = try c.decode(Date.self, forKey: .addedAt)
+        width = try c.decode(Int.self, forKey: .width)
+        height = try c.decode(Int.self, forKey: .height)
+        duration = try c.decode(Double.self, forKey: .duration)
+        kind = try c.decodeIfPresent(MediaKind.self, forKey: .kind) ?? .video
     }
 }
 
 enum ImportError: LocalizedError {
     case notPlayable(String)
     case noVideoTrack(String)
+    case unreadableImage(String)
 
     var errorDescription: String? {
         switch self {
         case .notPlayable(let name): return "«\(name)» no se puede reproducir con AVFoundation."
         case .noVideoTrack(let name): return "«\(name)» no contiene pista de vídeo."
+        case .unreadableImage(let name): return "«\(name)» no es una imagen que macOS pueda abrir."
         }
     }
 }
@@ -37,7 +74,7 @@ enum ImportError: LocalizedError {
 @MainActor
 final class VideoLibrary: ObservableObject {
     static let shared = VideoLibrary()
-    static let allowedTypes: [UTType] = [.mpeg4Movie, .quickTimeMovie, .appleProtectedMPEG4Video, .movie]
+    static let allowedTypes: [UTType] = [.mpeg4Movie, .quickTimeMovie, .appleProtectedMPEG4Video, .movie, .image]
 
     @Published private(set) var videos: [Video] = []
     @Published private(set) var importing = 0
@@ -88,6 +125,12 @@ final class VideoLibrary: ObservableObject {
     }
 
     private func importVideo(_ source: URL) async throws -> Video {
+        let accessing = source.startAccessingSecurityScopedResource()
+        defer { if accessing { source.stopAccessingSecurityScopedResource() } }
+        let type = UTType(filenameExtension: source.pathExtension)
+        if type?.conforms(to: .image) == true {
+            return try importImage(source)
+        }
         let name = source.deletingPathExtension().lastPathComponent
         let asset = AVURLAsset(url: source)
         guard try await asset.load(.isPlayable) else { throw ImportError.notPlayable(source.lastPathComponent) }
@@ -102,14 +145,38 @@ final class VideoLibrary: ObservableObject {
         let ext = source.pathExtension.isEmpty ? "mov" : source.pathExtension.lowercased()
         let fileName = "\(id.uuidString).\(ext)"
         let destination = directory.appendingPathComponent(fileName)
-        let accessing = source.startAccessingSecurityScopedResource()
-        defer { if accessing { source.stopAccessingSecurityScopedResource() } }
         try FileManager.default.copyItem(at: source, to: destination)
 
         let video = Video(id: id, name: name, fileName: fileName, addedAt: Date(),
                           width: Int(abs(size.width)), height: Int(abs(size.height)),
                           duration: duration.isFinite ? duration : 0)
         await writeThumbnail(for: AVURLAsset(url: destination), duration: duration, to: video.thumbnailURL)
+        return video
+    }
+
+    private func importImage(_ source: URL) throws -> Video {
+        guard let imageSource = CGImageSourceCreateWithURL(source as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
+              var width = props[kCGImagePropertyPixelWidth] as? Int,
+              var height = props[kCGImagePropertyPixelHeight] as? Int else {
+            throw ImportError.unreadableImage(source.lastPathComponent)
+        }
+        // EXIF orientations 5–8 are rotated 90°.
+        if let orientation = props[kCGImagePropertyOrientation] as? Int, orientation >= 5 {
+            swap(&width, &height)
+        }
+
+        let id = UUID()
+        let fileName = "\(id.uuidString).\(source.pathExtension.lowercased())"
+        let destination = directory.appendingPathComponent(fileName)
+        try FileManager.default.copyItem(at: source, to: destination)
+
+        let video = Video(id: id, name: source.deletingPathExtension().lastPathComponent, fileName: fileName,
+                          addedAt: Date(), width: width, height: height, duration: 0, kind: .image)
+        if let thumb = ImageLoader.downsample(destination, maxPixelSize: 640),
+           let data = NSBitmapImageRep(cgImage: thumb).representation(using: .jpeg, properties: [.compressionFactor: 0.8]) {
+            try? data.write(to: video.thumbnailURL, options: .atomic)
+        }
         return video
     }
 
@@ -142,5 +209,19 @@ final class VideoLibrary: ObservableObject {
 
     func isInUse(_ video: Video) -> Bool {
         Settings.shared.assignments.values.contains(video.id)
+    }
+}
+
+enum ImageLoader {
+    /// Decodes an image no larger than `maxPixelSize` on its long side, with EXIF rotation applied.
+    nonisolated static func downsample(_ url: URL, maxPixelSize: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 }

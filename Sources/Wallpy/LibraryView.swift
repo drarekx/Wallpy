@@ -70,7 +70,7 @@ private struct VideosTab: View {
         .sheet(item: $editorSource) { source in
             EditorSheet(source: source) { editorSource = nil }
         }
-        .alert("No se pudieron añadir algunos vídeos",
+        .alert("No se pudieron añadir algunos archivos",
                isPresented: Binding(get: { !errors.isEmpty }, set: { if !$0 { errors = [] } })) {
             Button("OK") { errors = [] }
         } message: {
@@ -93,7 +93,7 @@ private struct VideosTab: View {
             Button {
                 openPanel()
             } label: {
-                Label("Añadir vídeos…", systemImage: "plus")
+                Label("Añadir…", systemImage: "plus")
             }
             Button {
                 editorSource = .youtube
@@ -115,8 +115,10 @@ private struct VideosTab: View {
                     }
                     .fixedSize()
                 }
-                Button("Recortar…") { editorSource = .library(video) }
-                    .help("Elegir el tramo del bucle y optimizar el vídeo")
+                if !video.isImage {
+                    Button("Recortar…") { editorSource = .library(video) }
+                        .help("Elegir el tramo del bucle y optimizar el vídeo")
+                }
                 Button(role: .destructive) {
                     requestDelete(video)
                 } label: {
@@ -134,12 +136,12 @@ private struct VideosTab: View {
             Image(systemName: "film.stack")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("Arrastra vídeos aquí o haz clic en «Añadir vídeos…»")
+            Text("Arrastra vídeos o imágenes aquí, o haz clic en «Añadir…»")
                 .font(.headline)
-            Text("Formatos: MP4, MOV, M4V (lo que reproduzca QuickTime). Recomendado HD o superior.")
+            Text("Vídeos: MP4, MOV, M4V. Imágenes: JPG, PNG, HEIC, WebP, TIFF. Recomendado HD o superior.")
                 .foregroundStyle(.secondary)
             HStack {
-                Button("Añadir vídeos…") { openPanel() }
+                Button("Añadir…") { openPanel() }
                 Button("Desde YouTube…") { editorSource = .youtube }
             }
             .controlSize(.large)
@@ -156,7 +158,9 @@ private struct VideosTab: View {
             }
         }
         Divider()
-        Button("Recortar y optimizar…") { editorSource = .library(video) }
+        if !video.isImage {
+            Button("Recortar y optimizar…") { editorSource = .library(video) }
+        }
         Button("Mostrar en Finder") { NSWorkspace.shared.activateFileViewerSelecting([video.url]) }
         Button("Eliminar", role: .destructive) { requestDelete(video) }
     }
@@ -248,6 +252,7 @@ private struct VideoCard: View {
                         .help("Resolución baja: se verá pixelado")
                 }
                 Spacer()
+                if video.isImage { Image(systemName: "photo") }
                 Text(video.durationLabel)
             }
             .font(.caption)

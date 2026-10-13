@@ -35,6 +35,8 @@ private func makeDesktopWindow(frame: NSRect) -> NSWindow {
 
 private final class PlayerView: NSView {
     let playerLayer = AVPlayerLayer()
+    /// Still-image wallpapers.
+    let imageLayer = CALayer()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -45,12 +47,18 @@ private final class PlayerView: NSView {
         playerLayer.frame = bounds
         playerLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         layer?.addSublayer(playerLayer)
+        imageLayer.contentsGravity = .resizeAspectFill
+        imageLayer.masksToBounds = true
+        imageLayer.frame = bounds
+        imageLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        imageLayer.isHidden = true
+        layer?.addSublayer(imageLayer)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// One video wallpaper on one screen.
+/// One video (or still image) wallpaper on one screen.
 ///
 /// Occlusion uses a second, empty window that covers the screen's visible frame
 /// (excluding menu bar and Dock) at the desktop layer. When app windows cover it
@@ -59,6 +67,7 @@ private final class PlayerView: NSView {
 final class ScreenWallpaper: NSObject {
     let screenID: String
     private(set) var videoID: UUID?
+    private var isImage = false
     private let window: NSWindow
     private let occlusionWindow: NSWindow
     private let playerView: PlayerView
@@ -102,18 +111,44 @@ final class ScreenWallpaper: NSObject {
     func setVideo(_ video: Video?) {
         guard video?.id != videoID else { return }
         videoID = video?.id
+        isImage = video?.isImage ?? false
         looper?.disableLooping()
         looper = nil
         player.removeAllItems()
+        playerView.imageLayer.contents = nil
+        playerView.imageLayer.isHidden = !isImage
+        playerView.playerLayer.isHidden = isImage
         guard let video else {
             window.orderOut(nil)
             occlusionWindow.orderOut(nil)
             return
         }
-        let item = AVPlayerItem(asset: AVURLAsset(url: video.url))
-        looper = AVPlayerLooper(player: player, templateItem: item)
+        if video.isImage {
+            showImage(video)
+        } else {
+            let item = AVPlayerItem(asset: AVURLAsset(url: video.url))
+            looper = AVPlayerLooper(player: player, templateItem: item)
+        }
         window.orderFront(nil)
         occlusionWindow.orderFront(nil)
+    }
+
+    /// Decodes the image at screen resolution (not full size: a 50 MP photo would waste memory).
+    private func showImage(_ video: Video) {
+        let id = video.id
+        let scale = window.screen?.backingScaleFactor ?? 2
+        let maxPixels = Int(max(window.frame.width, window.frame.height) * scale)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let image = ImageLoader.downsample(video.url, maxPixelSize: maxPixels)
+            DispatchQueue.main.async {
+                guard let self, self.videoID == id else { return }
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                self.playerView.imageLayer.contents = image
+                self.playerView.imageLayer.contentsScale = scale
+                CATransaction.commit()
+            }
+        }
     }
 
     func setVolume(_ volume: Float) {
@@ -122,7 +157,7 @@ final class ScreenWallpaper: NSObject {
     }
 
     func setPlaying(_ playing: Bool) {
-        if playing && videoID != nil {
+        if playing && videoID != nil && !isImage {
             if player.timeControlStatus != .playing { player.play() }
         } else {
             player.pause()
