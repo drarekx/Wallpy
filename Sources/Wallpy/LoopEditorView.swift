@@ -44,16 +44,22 @@ struct EditorSheet: View {
                 ProgressView()
             case .failed(let message):
                 VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle").font(.largeTitle).foregroundStyle(.orange)
-                    Text(message).textSelection(.enabled).frame(maxWidth: 520)
-                    HStack {
-                        Button("Cerrar") { close() }
-                        if case .youtube = source { Button("Reintentar") { step = .link } }
+                    Image(systemName: "exclamationmark.triangle").font(.system(size: 30)).foregroundStyle(Theme.warn)
+                    Text(message).textSelection(.enabled).foregroundStyle(Theme.text2).frame(maxWidth: 520)
+                    HStack(spacing: 8) {
+                        Button("Cerrar") { close() }.buttonStyle(.wallpySecondary)
+                        if case .youtube = source {
+                            Button("Reintentar") { step = .link }.buttonStyle(.wallpyPrimary)
+                        }
                     }
                 }
                 .padding(32)
             }
         }
+        .background(Color(hex: 0x1C1C1F))
+        .foregroundStyle(Theme.text)
+        .font(.system(size: 13))
+        .preferredColorScheme(.dark)
         .onAppear {
             if case .youtube = source, link.isEmpty,
                let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -65,35 +71,49 @@ struct EditorSheet: View {
     }
 
     private var linkForm: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Descargar de YouTube").font(.title2.weight(.semibold))
-            HStack {
-                TextField("https://www.youtube.com/watch?v=…", text: $link)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(startDownload)
-                Button("Pegar") {
-                    if let text = NSPasteboard.general.string(forType: .string) {
-                        link = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    }
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(Theme.navSelected)
+                    .frame(width: 36, height: 36)
+                    .overlay { Image(systemName: "arrow.down.to.line").foregroundStyle(Theme.accentText) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Descargar de YouTube").font(.system(size: 16, weight: .semibold))
+                    Text("Al terminar se abre el editor para elegir el bucle.")
+                        .font(.system(size: 12)).foregroundStyle(Theme.text3)
                 }
             }
-            Picker("Calidad máxima", selection: $maxHeight) {
-                Text("1080p").tag(1080)
-                Text("1440p").tag(1440)
-                Text("4K").tag(2160)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Enlace del vídeo").foregroundStyle(Theme.text2)
+                HStack(spacing: 8) {
+                    WallpyTextField(placeholder: "https://www.youtube.com/watch?v=…", text: $link, onSubmit: startDownload)
+                    Button("Pegar") {
+                        if let text = NSPasteboard.general.string(forType: .string) {
+                            link = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    }
+                    .buttonStyle(.wallpySecondary)
+                }
             }
-            .pickerStyle(.segmented)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Calidad máxima").foregroundStyle(Theme.text2)
+                SegmentedControl(options: [("1080p", 1080), ("1440p", 1440), ("4K", 2160)],
+                                 selection: $maxHeight, expand: true)
+            }
             if !ExternalTool.missing.isEmpty {
                 Label("Falta: \(ExternalTool.missing.map(\.rawValue).joined(separator: ", ")). Instala con «brew install yt-dlp ffmpeg».",
                       systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.warn)
             }
-            Text("Descarga solo vídeos tuyos, con licencia libre o con permiso del autor.")
-                .font(.caption).foregroundStyle(.secondary)
-            HStack {
+            Text("Descarga solo vídeos tuyos, con licencia libre o con permiso de su autor.")
+                .font(.system(size: 11)).foregroundStyle(Theme.text3)
+            HStack(spacing: 8) {
                 Spacer()
-                Button("Cancelar") { close() }.keyboardShortcut(.cancelAction)
+                Button("Cancelar") { close() }
+                    .buttonStyle(WallpyButtonStyle(kind: .ghost, height: 34))
+                    .keyboardShortcut(.cancelAction)
                 Button("Descargar", action: startDownload)
+                    .buttonStyle(WallpyButtonStyle(kind: .primary, height: 34))
                     .keyboardShortcut(.defaultAction)
                     .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty || !ExternalTool.missing.isEmpty)
             }
@@ -180,17 +200,20 @@ private struct WorkingView: View {
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text(message).font(.headline)
+        VStack(alignment: .leading, spacing: 14) {
+            Text(message).font(.system(size: 14, weight: .semibold))
             if let progress {
-                ProgressView(value: progress).frame(width: 360)
-                Text("\(Int(progress * 100)) %").monospacedDigit().foregroundStyle(.secondary)
+                ProgressView(value: progress).tint(Theme.accent)
+                Text("\(Int(progress * 100)) %").monospacedText().foregroundStyle(Theme.text2)
             } else {
-                ProgressView()
+                ProgressView().controlSize(.small).frame(maxWidth: .infinity)
             }
-            Button("Cancelar", action: onCancel)
+            HStack {
+                Spacer()
+                Button("Cancelar", action: onCancel).buttonStyle(WallpyButtonStyle(kind: .secondary, height: 30))
+            }
         }
-        .padding(32)
-        .frame(minWidth: 460)
+        .padding(24)
+        .frame(width: 420)
     }
 }

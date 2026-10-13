@@ -128,13 +128,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func showLibrary() {
         if libraryWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 920, height: 620),
+                contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered, defer: false)
             window.title = "Wallpy"
             window.isReleasedWhenClosed = false
-            window.minSize = NSSize(width: 720, height: 480)
-            window.contentViewController = NSHostingController(rootView: LibraryView())
+            window.minSize = NSSize(width: 960, height: 600)
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.backgroundColor = NSColor(red: 0x12 / 255, green: 0x12 / 255, blue: 0x14 / 255, alpha: 1)
+            window.titlebarAppearsTransparent = true
+            let hosting = NSHostingController(rootView: LibraryView())
+            hosting.sizingOptions = []
+            window.contentViewController = hosting
+            window.setContentSize(NSSize(width: 1280, height: 800))
             window.center()
             libraryWindow = window
         }

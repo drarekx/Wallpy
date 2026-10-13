@@ -490,11 +490,11 @@ final class ThumbnailCache: ObservableObject {
 // MARK: - Views
 
 private enum EditorColors {
-    static let panel = Color(white: 0.13)
-    static let background = Color(white: 0.09)
-    static let track = Color(white: 0.18)
-    static let range = Color(red: 0.36, green: 0.55, blue: 1.0)
-    static let playhead = Color(red: 1.0, green: 0.27, blue: 0.27)
+    static let panel = Theme.sidebar
+    static let background = Theme.editorBackground
+    static let track = Theme.control
+    static let range = Theme.accent
+    static let playhead = Theme.playhead
 }
 
 struct EditorRootView: View {
@@ -502,19 +502,47 @@ struct EditorRootView: View {
     let onClose: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                MonitorView(model: model)
-                TransportBar(model: model)
-                TimelineView(model: model, thumbnails: model.thumbnails)
+        VStack(spacing: 0) {
+            EditorHeader(model: model)
+            Rectangle().fill(Theme.line).frame(height: 1)
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    MonitorView(model: model)
+                    Rectangle().fill(Theme.line).frame(height: 1)
+                    TransportBar(model: model)
+                    Rectangle().fill(Theme.line).frame(height: 1)
+                    TimelineView(model: model, thumbnails: model.thumbnails)
+                }
+                Rectangle().fill(Theme.line).frame(width: 1)
+                InspectorView(model: model, onClose: onClose)
+                    .frame(width: 330)
             }
-            Divider()
-            InspectorView(model: model, onClose: onClose)
-                .frame(width: 310)
         }
         .background(EditorColors.background)
+        .foregroundStyle(Theme.text)
+        .tint(Theme.accent)
         .preferredColorScheme(.dark)
             }
+}
+
+private struct EditorHeader: View {
+    @ObservedObject var model: EditorModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "scissors").foregroundStyle(Theme.accentText)
+            Text("Editor de bucle").fontWeight(.semibold)
+            Text(model.baseName).foregroundStyle(Theme.text3).lineLimit(1)
+            Spacer()
+            Text("\(model.info.width)×\(model.info.height) · \(Int(model.info.fps.rounded())) fps · \(model.timecode(model.duration))")
+                .monospacedText(size: 11)
+                .foregroundStyle(Theme.text3)
+        }
+        .font(.system(size: 13))
+        .padding(.horizontal, 16)
+        .frame(height: 40)
+        .background(Theme.sidebar)
+    }
 }
 
 private struct MonitorView: View {
@@ -559,9 +587,12 @@ private struct TransportBar: View {
                 iconButton("backward.frame", "Fotograma anterior (←)") { model.step(frames: -1) }
                 Button { model.togglePlay() } label: {
                     Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 20)).frame(width: 36, height: 28)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.window)
+                        .frame(width: 44, height: 34)
+                        .background(Theme.text, in: RoundedRectangle(cornerRadius: 9))
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
                 .help("Reproducir / pausa (Espacio)")
                 iconButton("forward.frame", "Fotograma siguiente (→)") { model.step(frames: 1) }
                 iconButton("arrow.right.to.line", "Ir a la salida (↓)") { model.goToOut() }
