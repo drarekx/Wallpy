@@ -26,6 +26,7 @@ final class WallpaperManager: ObservableObject {
     /// Screen UUID → what it shows right now (after moments and battery rules).
     @Published private(set) var displayed: [String: UUID] = [:]
     private var momentTimer: Timer?
+    private var overlayTimer: Timer?
     private var tooHot = WallpaperManager.isTooHot
 
     private var wallpapers: [String: ScreenWallpaper] = [:]
@@ -77,8 +78,21 @@ final class WallpaperManager: ObservableObject {
             settings.$momentStarts.map { _ in () }.eraseToAnyPublisher()
         )
         .receive(on: RunLoop.main)
-        .sink { [weak self] in self?.updateMoment() }
+        .sink { [weak self] in
+            self?.updateMoment()
+            self?.restartOverlayClock()
+        }
         .store(in: &cancellables)
+
+        settings.$overlays
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.applyOverlays() }
+            .store(in: &cancellables)
+        // Dates are written in the app's language.
+        Localizer.shared.$choice
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.restartOverlayClock() }
+            .store(in: &cancellables)
 
         Publishers.MergeMany(
             settings.$assignments.map { _ in () }.eraseToAnyPublisher(),
@@ -184,6 +198,7 @@ final class WallpaperManager: ObservableObject {
             }
         }
         applyAssignments()
+        applyOverlays()
     }
 
     private static var isTooHot: Bool {
@@ -248,6 +263,48 @@ final class WallpaperManager: ObservableObject {
             }
         }
         PlayerPool.shared.play(only: playing)
+        updateOverlayClock()
+    }
+
+    // MARK: - Overlays
+
+    private func applyOverlays() {
+        let overlays = Settings.shared.overlays
+        for (id, wallpaper) in wallpapers { wallpaper.setOverlays(overlays[id] ?? []) }
+        restartOverlayClock()
+    }
+
+    private func restartOverlayClock() {
+        overlayTimer?.invalidate()
+        overlayTimer = nil
+        updateOverlayClock()
+    }
+
+    /// The clock ticks while some screen has elements and the displays are on.
+    /// Manual or battery pauses don't stop it: a frozen clock would be wrong.
+    private func updateOverlayClock() {
+        let active = !screensAsleep && !sessionInactive && wallpapers.values.contains(where: \.hasOverlays)
+        guard active else {
+            overlayTimer?.invalidate()
+            overlayTimer = nil
+            return
+        }
+        if overlayTimer == nil { tickOverlays() }
+    }
+
+    /// Redraws now and schedules one timer for the next second or minute boundary.
+    private func tickOverlays() {
+        let now = Date()
+        wallpapers.values.forEach { $0.updateOverlays(now) }
+        let seconds = wallpapers.values.contains(where: \.overlaysShowSeconds)
+        let step: TimeInterval = seconds ? 1 : 60
+        let next = (now.timeIntervalSinceReferenceDate / step).rounded(.down) * step + step
+        let timer = Timer(fire: Date(timeIntervalSinceReferenceDate: next + 0.02), interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickOverlays() }
+        }
+        timer.tolerance = seconds ? 0.05 : 0.3
+        RunLoop.main.add(timer, forMode: .common)
+        overlayTimer = timer
     }
 
     // MARK: - Actions used by the UI

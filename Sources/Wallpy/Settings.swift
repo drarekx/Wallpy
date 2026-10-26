@@ -68,6 +68,8 @@ final class Settings: ObservableObject {
     @Published var momentStarts: [String: Int] { didSet { save(momentStarts, "momentStarts") } }
     /// Put the wallpaper above the Finder desktop icons.
     @Published var hideDesktopIcons: Bool { didSet { defaults.set(hideDesktopIcons, forKey: "hideDesktopIcons") } }
+    /// Screen UUID → elements (clock, date…) drawn over its wallpaper.
+    @Published var overlays: [String: [OverlayWidget]] { didSet { save(overlays, "overlays") } }
 
     private init() {
         defaults.register(defaults: [
@@ -104,6 +106,8 @@ final class Settings: ObservableObject {
         pauseOnLowBattery = defaults.bool(forKey: "pauseOnLowBattery")
         lowBatteryLevel = defaults.integer(forKey: "lowBatteryLevel")
         hideDesktopIcons = defaults.bool(forKey: "hideDesktopIcons")
+        overlays = defaults.data(forKey: "overlays")
+            .flatMap { try? JSONDecoder().decode([String: [OverlayWidget]].self, from: $0) } ?? [:]
     }
 
     // MARK: Moments
