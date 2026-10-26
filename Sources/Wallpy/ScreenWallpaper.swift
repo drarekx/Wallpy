@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import SwiftUI
 
 extension NSScreen {
     /// Stable identifier across launches and reconnections.
@@ -138,6 +139,8 @@ final class ScreenWallpaper: NSObject {
     private let window: NSWindow
     private let occlusionWindow: NSWindow
     private let playerView: PlayerView
+    private let overlay = OverlayModel()
+    private let overlayView: NSHostingView<ScreenOverlayView>
     private(set) var isOccluded = false
     var onOcclusionChange: (() -> Void)?
 
@@ -145,10 +148,22 @@ final class ScreenWallpaper: NSObject {
         screenID = screen.uuidString
         window = makeDesktopWindow(frame: screen.frame, opaque: true)
         occlusionWindow = makeDesktopWindow(frame: screen.visibleFrame, opaque: false)
-        playerView = PlayerView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        let bounds = NSRect(origin: .zero, size: screen.frame.size)
+        playerView = PlayerView(frame: bounds)
+        overlayView = NSHostingView(rootView: ScreenOverlayView(model: overlay))
         super.init()
 
-        window.contentView = playerView
+        // The overlay is a sibling above the player, so the swap fade doesn't touch it.
+        let container = NSView(frame: bounds)
+        container.wantsLayer = true
+        playerView.autoresizingMask = [.width, .height]
+        overlayView.sizingOptions = []
+        overlayView.frame = bounds
+        overlayView.autoresizingMask = [.width, .height]
+        overlayView.isHidden = true
+        container.addSubview(playerView)
+        container.addSubview(overlayView)
+        window.contentView = container
 
         occlusionWindow.contentView = NSView()
         NotificationCenter.default.addObserver(self, selector: #selector(occlusionChanged),
@@ -220,10 +235,29 @@ final class ScreenWallpaper: NSObject {
         }
     }
 
+    // MARK: Overlays
+
+    var hasOverlays: Bool { !overlay.widgets.isEmpty }
+    var overlaysShowSeconds: Bool { overlay.widgets.contains { $0.kind == .time && $0.showSeconds } }
+
+    func setOverlays(_ widgets: [OverlayWidget]) {
+        guard widgets != overlay.widgets else { return }
+        overlay.widgets = widgets
+        overlay.now = Date()
+        overlayView.isHidden = widgets.isEmpty
+    }
+
+    /// Redraws the clock; skipped while covered, since nobody sees it.
+    func updateOverlays(_ date: Date) {
+        guard hasOverlays, !isOccluded else { return }
+        overlay.now = date
+    }
+
     @objc private func occlusionChanged() {
         let occluded = !occlusionWindow.occlusionState.contains(.visible)
         guard occluded != isOccluded else { return }
         isOccluded = occluded
+        if !occluded { updateOverlays(Date()) }
         onOcclusionChange?()
     }
 

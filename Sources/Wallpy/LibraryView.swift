@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum LibrarySection: Hashable {
-    case library, schedule, originals, settings
+    case library, schedule, overlays, originals, settings
 }
 
 /// Main window: sidebar + the selected section, in the editor's dark style.
@@ -20,6 +20,7 @@ struct LibraryView: View {
                 switch section {
                 case .library: LibraryPane(editorSource: $editorSource, openSchedule: { section = .schedule })
                 case .schedule: SchedulePane()
+                case .overlays: OverlaysPane()
                 case .originals: OriginalsPane(editorSource: $editorSource)
                 case .settings: SettingsPane()
                 }
@@ -64,6 +65,7 @@ private struct Sidebar: View {
             VStack(spacing: 2) {
                 navItem(tr("Biblioteca"), "square.grid.2x2", .library, count: library.videos.count)
                 navItem(tr("Programación"), "calendar.badge.clock", .schedule, count: nil)
+                navItem(tr("Elementos"), "clock", .overlays, count: nil)
                 navItem(tr("Originales"), "film", .originals, count: originals.originals.count)
                 navItem(tr("Ajustes"), "slider.horizontal.3", .settings, count: nil)
             }

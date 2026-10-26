@@ -31,6 +31,7 @@ Requisitos: macOS 14 (Sonoma) o posterior. Apple Silicon o Intel.
   - Fundido del bucle para que no se note el salto al repetir.
   - Optimización: HEVC por hardware, resolución, calidad, 30 fps, quitar sonido.
 - **Programación por momentos del día**: una cuadrícula pantallas × momentos (Siempre, madrugada, mañana, tarde, noche) donde eliges qué fondo se ve en cada casilla; cambio automático con fundido y horas ajustables.
+- **Elementos sobre el fondo**: hora y fecha encima del fondo, configurables por pantalla (posición, tamaño, letra, color, sombra, formato 24/12 h, segundos). Vista previa en directo y copia a las demás pantallas. Apenas gasta: se redibuja una vez por minuto (o por segundo) y se para con las pantallas apagadas.
 - **Originales**: guarda vídeos largos para sacar más fondos otro día sin volver a descargarlos.
 - **Ahorro de energía**: pausa cuando las ventanas tapan el escritorio, con batería o con batería baja, y cuando se apagan las pantallas.
 - Ocultar iconos del escritorio, volumen (silenciado por defecto) y abrir al iniciar sesión.

@@ -49,6 +49,9 @@ git tag v1.5.0 && git push origin v1.5.0
 | `LibraryView.swift` | Ventana principal: barra lateral, Biblioteca + inspector, Originales, Ajustes |
 | `EditorWindow.swift` | Editor de bucle: modelo, tramos, miniaturas, línea de tiempo, atajos |
 | `LoopEditorView.swift` | Hoja de descarga de YouTube / preparación antes del editor |
+| `ScheduleView.swift` | Programación: cuadrícula pantallas × momentos del día |
+| `Overlays.swift` | Elementos sobre el fondo (hora, fecha): modelo `OverlayWidget`, `OverlayCanvas` (ventana de fondo y vista previa) |
+| `OverlaysView.swift` | Sección «Elementos»: vista previa por pantalla y editor de cada elemento |
 | `Theme.swift` | Colores, botones y controles comunes (estilo oscuro) |
 | `Updater.swift` | Autoactualización desde GitHub Releases con verificación SHA-256 |
 | `Migration.swift` | Migra datos del nombre antiguo (MyWallpaper) |
@@ -75,6 +78,7 @@ Datos del usuario: `~/Library/Application Support/Wallpy/{Videos,Originals}`. Te
 - yt-dlp suele bajar AV1 en 4K; AVFoundation lo decodifica en M3/M4. Si no se puede (`SourceInfo.isPreviewable`), se convierte antes de abrir el editor.
 - Filtros de ffmpeg: pasar los argumentos como lista (`Process`), no por shell, por las comillas de `scale='if(…)'`.
 - GIF → MP4: `premultiply` deja la transparencia en negro; dimensiones pares y `setsar=1`.
+- **Elementos sobre el fondo**: `NSHostingView` hermana del `PlayerView` dentro de un contenedor (no subvista del reproductor, para que el fundido al cambiar de fondo no la afecte), oculta si la pantalla no tiene elementos. Un único temporizador en `WallpaperManager` alineado al minuto/segundo; nada de `TimelineView(.animation)` ni desenfoques sobre el vídeo.
 - Al cambiar el nombre/ID de la app, migrar `Application Support` y el dominio de `UserDefaults`.
 
 ## Pruebas manuales
